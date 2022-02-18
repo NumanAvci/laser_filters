@@ -26,7 +26,7 @@ namespace delete_platform_namespace{
     laser_y_ = tf_transform_laser.getOrigin().y();
     laser_z_ = tf_transform_laser.getOrigin().z();
   
-    //robot_yaw_ = tf_transform_robotposition.getRotation().getAngle().tfDegrees(tf_transform_laser.getRotation().getAngle());
+    robot_yaw_ = tf_transform_robotposition.getRotation().getAngle();
     ros::spinOnce();
   }
 	
