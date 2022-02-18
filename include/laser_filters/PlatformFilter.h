@@ -2,7 +2,7 @@
 #include <sensor_msgs/LaserScan.h>
 #include <geometry_msgs/Point32.h>
 #include <geometry_msgs/Polygon.h>
-#include <simple_layers/Polygon_array.h>
+#include <laser_filters/Polygon_array.h>
 #include <tf/transform_listener.h>
 #include <cmath>
 #include <queue>
@@ -11,7 +11,6 @@
 #include <limits>
 #include "filters/filter_base.h"
 #include <sensor_msgs/LaserScan.h>
-#include <limits>
 
 namespace delete_platform_namespace{
 	
@@ -38,9 +37,7 @@ class PlatformFilter : public filters::FilterBase<sensor_msgs::LaserScan>
 		line_segment calculateLine(double, double, double , double);
 		bool exactlyPlatfrom(line_segment* scan, line_segment* platform);
 
-		//ros::Subscriber laser_scan_sub_;//filtered scanning data
 		ros::Subscriber platfrom_sub_;
-		//ros::Subscriber robot_position_sub_;
 		tf::TransformListener tf_listener_;//for finding laser's position 
 
 		
