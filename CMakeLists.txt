@@ -10,7 +10,11 @@ set(CMAKE_CXX_STANDARD 11)
 set(THIS_PACKAGE_ROS_DEPS sensor_msgs roscpp tf filters message_filters
   laser_geometry pluginlib angles dynamic_reconfigure nodelet)
 
-find_package(catkin REQUIRED COMPONENTS ${THIS_PACKAGE_ROS_DEPS})
+find_package(catkin REQUIRED COMPONENTS ${THIS_PACKAGE_ROS_DEPS}
+std_msgs
+message_generation
+  geometry_msgs
+  sensor_msgs)
 find_package(Boost REQUIRED COMPONENTS system)
 include_directories(include ${catkin_INCLUDE_DIRS} ${Boost_INCLUDE_DIRS})
 
@@ -51,6 +55,7 @@ add_library(laser_scan_filters
   src/speckle_filter.cpp
   src/intensity_filter.cpp
   src/sector_filter.cpp
+  src/PlatformFilter.cpp
 )
 target_link_libraries(laser_scan_filters ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 
