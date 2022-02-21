@@ -31,8 +31,8 @@ class PlatformFilter : public filters::FilterBase<sensor_msgs::LaserScan>
 		virtual bool configure();
   
 	private:
-		void PlatformCallBack(const simple_layers::Polygon_array::ConstPtr& msg);
-		bool isIntersection(float angle, double scan_data__range_index);
+		void PlatformCallBack(const laser_filters::Polygon_array::ConstPtr& msg);
+		bool isIntersection(float angle, double range);
 		bool isOnPlatform();
 		line_segment calculateLine(double, double, double , double);
 		bool exactlyPlatfrom(line_segment* scan, line_segment* platform);

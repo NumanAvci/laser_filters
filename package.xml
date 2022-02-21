@@ -24,6 +24,9 @@
   <build_depend>rostest</build_depend>
   <build_depend>angles</build_depend>
   <build_depend>nodelet</build_depend>
+  <build_depend>message_generation</build_depend>
+
+  <!--<build_export_depend>message_generation</build_export_depend>-->
 
   <run_depend>dynamic_reconfigure</run_depend>
   <run_depend>sensor_msgs</run_depend>
@@ -31,6 +34,7 @@
   <run_depend>tf</run_depend>
   <run_depend>filters</run_depend>
   <run_depend>message_filters</run_depend>
+  <run_depend>message_runtime</run_depend>
   <run_depend>laser_geometry</run_depend>
   <run_depend>pluginlib</run_depend>
   <run_depend>angles</run_depend>

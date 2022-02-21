@@ -7,8 +7,8 @@
 	
 namespace delete_platform_namespace{
 		
-
-  PlatformFilter::PlatformFilter(){//I may need to carry that tranformation to the configure method 
+  
+  virtual bool PlatformFilter::configure(){
     ros::NodeHandle nh;
     platfrom_sub_ = nh.subscribe("/platforms", 1000, &PlatformFilter::PlatformCallBack, this);
     //robot_position_sub_ = nh.subscribe("/position", 1000, &PlatformFilter::PlatformCallBack, this);
@@ -29,6 +29,10 @@ namespace delete_platform_namespace{
     robot_yaw_ = tf_transform_robotposition.getRotation().getAngle();
     ros::spinOnce();
   }
+
+  PlatformFilter::PlatformFilter(){//I may need to carry that transformation to the configure method (so I did:)
+    
+  }
 	
   /*marking the ranges of intersection of scan data to the platform*/
   bool PlatformFilter::update(const sensor_msgs::LaserScan& data_in, sensor_msgs::LaserScan& data_out)
@@ -44,7 +48,7 @@ namespace delete_platform_namespace{
       {
         if(!isOnPlatform())
         {
-          if(isIntersection(angle, *it))//controls the intersection of scan and
+          if(*it != std::numeric_limits<float>::quiet_NaN() && isIntersection(angle, *it))//controls the intersection of scan and
                                                 //platfroms' beginnning and also questions 
                                                //is really coming from platfrom
           {
@@ -88,14 +92,14 @@ namespace delete_platform_namespace{
       }
     }
 
-		platforms_ready_ = false;
-		data_read_ = false;
-		return true;
+    platforms_ready_ = false;
+    data_read_ = false;
+    return true;
   }
 
 
   /*memorize the platforms position*/
-  void PlatformFilter::PlatformCallBack(const simple_layers::Polygon_array::ConstPtr& msg)
+  void PlatformFilter::PlatformCallBack(const laser_filters::Polygon_array::ConstPtr& msg)
   {
     platform_array_ = msg->points_to_points;
     platforms_ready_ = true;
@@ -103,12 +107,12 @@ namespace delete_platform_namespace{
 
 
   /*control the intersection of reading scanning data to the one of the platforms*/
-  bool PlatformFilter::isIntersection(float angle, double scan_data_range_index)
+  bool PlatformFilter::isIntersection(float angle, double range)
   {
   	
     double angle_of_alfa = angle + (135.0/180) + robot_yaw_;//135 is robot specific angle
-    double scanning_point_y = laser_y_ + scan_data_range_index * std::sin(angle_of_alfa);//according to map
-    double scanning_point_x = laser_x_ + scan_data_range_index * std::cos(angle_of_alfa);
+    double scanning_point_y = laser_y_ + range * std::sin(angle_of_alfa);//according to map
+    double scanning_point_x = laser_x_ + range * std::cos(angle_of_alfa);
     /*now we know that reading point, laser point, platforms' points*/
     
     line_segment scanning_line = calculateLine(laser_x_, laser_y_, scanning_point_x, scanning_point_y);

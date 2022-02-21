@@ -11,8 +11,10 @@ set(THIS_PACKAGE_ROS_DEPS sensor_msgs roscpp tf filters message_filters
   laser_geometry pluginlib angles dynamic_reconfigure nodelet)
 
 find_package(catkin REQUIRED COMPONENTS ${THIS_PACKAGE_ROS_DEPS}
-std_msgs
-message_generation
+  roscpp
+  rospy
+  std_msgs
+  message_generation
   geometry_msgs
   sensor_msgs)
 find_package(Boost REQUIRED COMPONENTS system)
@@ -32,10 +34,21 @@ generate_dynamic_reconfigure_options(
   cfg/SectorFilter.cfg
 )
 
+add_message_files(
+   FILES
+   Polygon_array.msg
+)
+
+generate_messages(
+  DEPENDENCIES
+  std_msgs
+  geometry_msgs
+)
+
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES pointcloud_filters laser_scan_filters
-  CATKIN_DEPENDS ${THIS_PACKAGE_ROS_DEPS}
+  CATKIN_DEPENDS ${THIS_PACKAGE_ROS_DEPS} message_runtime
   DEPENDS
   )
 
@@ -57,6 +70,7 @@ add_library(laser_scan_filters
   src/sector_filter.cpp
   src/PlatformFilter.cpp
 )
+
 target_link_libraries(laser_scan_filters ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 
 add_executable(scan_to_cloud_filter_chain src/scan_to_cloud_filter_chain.cpp)
@@ -109,3 +123,4 @@ install(DIRECTORY include/${PROJECT_NAME}/
 install(FILES laser_filters_plugins.xml nodelets.xml
     DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )
+
