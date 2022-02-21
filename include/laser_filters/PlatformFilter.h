@@ -36,14 +36,15 @@ class PlatformFilter : public filters::FilterBase<sensor_msgs::LaserScan>
 		bool isOnPlatform();
 		line_segment calculateLine(double, double, double , double);
 		bool exactlyPlatfrom(line_segment* scan, line_segment* platform);
+		void tf_update();
 
 		ros::Subscriber platfrom_sub_;
 		tf::TransformListener tf_listener_;//for finding laser's position 
 
 		
-		double laser_x_, laser_y_, laser_z_, robot_yaw_;//coordinate of laser according to map
+		double laser_x_, laser_y_, laser_z_, laser_yaw_;//coordinate of laser according to map
 		std::vector<geometry_msgs::Polygon> platform_array_;
-		bool data_read_, platforms_ready_;
+		bool platforms_ready_;
 		std::queue<std::vector<float>::iterator> platform_angle_range_;
 };
 

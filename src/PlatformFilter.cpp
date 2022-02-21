@@ -11,32 +11,18 @@ namespace delete_platform_namespace{
   bool PlatformFilter::configure(){
     ros::NodeHandle nh;
     platfrom_sub_ = nh.subscribe("/platforms", 1000, &PlatformFilter::PlatformCallBack, this);
-    //robot_position_sub_ = nh.subscribe("/position", 1000, &PlatformFilter::PlatformCallBack, this);
-
-    tf::StampedTransform tf_transform_laser;
-    tf::StampedTransform tf_transform_robotposition;
-    try{
-      tf_listener_.lookupTransform("/map", "/base_scan", ros::Time(0), tf_transform_laser);//laser's position according to map
-      tf_listener_.lookupTransform("/map", "/base_link", ros::Time(0), tf_transform_robotposition);//robot's position ''   '' ''
-      }
-      catch (tf::TransformException &ex) {
-      ROS_ERROR("%s",ex.what()); // Bunlar tabla karışık space - tab . space .. olması lazım normalde
-      }
-    laser_x_ = tf_transform_laser.getOrigin().x();//coordinate of laser according to map
-    laser_y_ = tf_transform_laser.getOrigin().y();
-    laser_z_ = tf_transform_laser.getOrigin().z();
-  
-    robot_yaw_ = tf_transform_robotposition.getRotation().getAngle();
+    platforms_ready_ = false;
     ros::spinOnce();
   }
 
-  PlatformFilter::PlatformFilter(){//I may need to carry that transformation to the configure method (so I did:)
+  PlatformFilter::PlatformFilter(){//I may need to carry that transformation to the configure method (so I did:) but it was also wrong)
     
   }
 	
   /*marking the ranges of intersection of scan data to the platform*/
   bool PlatformFilter::update(const sensor_msgs::LaserScan& data_in, sensor_msgs::LaserScan& data_out)
   {
+  	tf_update();
     data_out = data_in;
     if(platforms_ready_ )//is published the platforms by the user
     {
@@ -89,8 +75,6 @@ namespace delete_platform_namespace{
       }
     }
 
-    platforms_ready_ = false;
-    data_read_ = false;
     return true;
   }
 
@@ -107,7 +91,7 @@ namespace delete_platform_namespace{
   bool PlatformFilter::isIntersection(float angle, double range)
   {
   	
-    double angle_of_alfa = angle + (135.0/180) + robot_yaw_;//135 is robot specific angle
+    double angle_of_alfa = angle + laser_yaw_;//135 is robot specific angle
     double scanning_point_y = laser_y_ + range * std::sin(angle_of_alfa);//according to map
     double scanning_point_x = laser_x_ + range * std::cos(angle_of_alfa);
     /*now we know that reading point, laser point, platforms' points*/
@@ -189,5 +173,20 @@ namespace delete_platform_namespace{
           return true;
 
     return false;
+  }
+
+  void PlatformFilter::tf_update(){
+    tf::StampedTransform tf_transform_laser;
+    try{
+      tf_listener_.lookupTransform("/map", "/base_scan", ros::Time(0), tf_transform_laser);//laser's position according to map
+      }
+      catch (tf::TransformException &ex) {
+      ROS_ERROR("%s",ex.what()); 
+      }
+    laser_x_ = tf_transform_laser.getOrigin().x();//coordinate of laser according to map
+    laser_y_ = tf_transform_laser.getOrigin().y();
+    laser_z_ = tf_transform_laser.getOrigin().z();
+  
+    laser_yaw_ = tf_transform_laser.getRotation().getAngle();
   }
 }
