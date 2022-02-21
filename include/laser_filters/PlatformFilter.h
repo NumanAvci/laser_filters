@@ -9,6 +9,9 @@
 #include <vector>
 #include <string>
 #include <limits>
+#include <boost/geometry.hpp>
+#include <boost/geometry/geometries/linestring.hpp>
+#include <boost/geometry/geometries/point_xy.hpp>
 #include "filters/filter_base.h"
 #include <sensor_msgs/LaserScan.h>
 
@@ -35,8 +38,9 @@ class PlatformFilter : public filters::FilterBase<sensor_msgs::LaserScan>
 		bool isIntersection(float angle, double range);
 		bool isOnPlatform();
 		line_segment calculateLine(double, double, double , double);
-		bool exactlyPlatfrom(line_segment* scan, line_segment* platform);
+		bool exactlyPlatform(line_segment* scan, line_segment* platform);
 		void tf_update();
+		bool boost_intersection(std::vector<geometry_msgs::Point32> *points_of_platform, double l_end_x, double l_end_y);
 
 		ros::Subscriber platfrom_sub_;
 		tf::TransformListener tf_listener_;//for finding laser's position 

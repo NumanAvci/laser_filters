@@ -4,10 +4,9 @@
 //PLUGINLIB_EXPORT_CLASS(delete_platform_namespace::PlatformFilter, filters::FilterBase<sensor_msgs::LaserScan>)
 //PLUGINLIB_REGISTER_CLASS(simple_layers_PlatformFilter, delete_platform_namespace::PlatformFilter, filters::FilterBase<sensor_msgs::LaserScan>)
 
-	
+
 namespace delete_platform_namespace{
-		
-  
+
   bool PlatformFilter::configure(){
     ros::NodeHandle nh;
     platfrom_sub_ = nh.subscribe("/platforms", 1000, &PlatformFilter::PlatformCallBack, this);
@@ -16,13 +15,13 @@ namespace delete_platform_namespace{
   }
 
   PlatformFilter::PlatformFilter(){//I may need to carry that transformation to the configure method (so I did:) but it was also wrong)
-    
+   
   }
-	
+
   /*marking the ranges of intersection of scan data to the platform*/
   bool PlatformFilter::update(const sensor_msgs::LaserScan& data_in, sensor_msgs::LaserScan& data_out)
   {
-  	tf_update();
+    tf_update();
     data_out = data_in;
     if(platforms_ready_ )//is published the platforms by the user
     {
@@ -91,17 +90,25 @@ namespace delete_platform_namespace{
   bool PlatformFilter::isIntersection(float angle, double range)
   {
   	
-    double angle_of_alfa = angle + laser_yaw_;//135 is robot specific angle
+    double angle_of_alfa = angle + laser_yaw_;
     double scanning_point_y = laser_y_ + range * std::sin(angle_of_alfa);//according to map
     double scanning_point_x = laser_x_ + range * std::cos(angle_of_alfa);
     /*now we know that reading point, laser point, platforms' points*/
     
     line_segment scanning_line = calculateLine(laser_x_, laser_y_, scanning_point_x, scanning_point_y);
+
     for (std::vector<geometry_msgs::Polygon>::iterator i = platform_array_.begin(); &(*i) != &(*platform_array_.end()); ++i)
     {
       std::vector<geometry_msgs::Point32> points_of_platform = i->points;
       std::vector<geometry_msgs::Point32>::iterator beginnning = points_of_platform.begin();
       std::vector<geometry_msgs::Point32>::iterator end = points_of_platform.end();
+      std::vector<geometry_msgs::Point32>::iterator index = beginnning;
+      
+        if(boost_intersection(&points_of_platform, scanning_point_x, scanning_point_y)){
+          line_segment platforms_line = calculateLine((*beginnning).x, (*beginnning).y, (*end).x, (*end).y);
+        	return exactlyPlatform(&scanning_line, &platforms_line);
+        }
+      /*
       line_segment platforms_line = calculateLine((*beginnning).x, (*beginnning).y, (*end).x, (*end).y);
 
       double difference_slope = platforms_line.m - scanning_line.m;//m1-m2=m_new
@@ -112,12 +119,13 @@ namespace delete_platform_namespace{
       double intersection_point_x = (0-difference_bValue)/difference_slope;//-b_new/m_new
       double intersection_point_y = platforms_line.m * intersection_point_x + platforms_line.b;//m1x+b1
 
-      /*controling range of intersection_point*/
+      /*controling range of intersection_point
       if(intersection_point_x > platforms_line.range_x1 && intersection_point_x < platforms_line.range_x2
         && intersection_point_x > scanning_line.range_x1 && intersection_point_x < scanning_line.range_x2)
         if(intersection_point_y > platforms_line.range_y1 && intersection_point_y < platforms_line.range_y2
         && intersection_point_y > scanning_line.range_y1 && intersection_point_y < scanning_line.range_y2)
-          return exactlyPlatfrom(&scanning_line, &platforms_line);
+          return exactlyPlatform(&scanning_line, &platforms_line);
+      */
     }
 
     return false;
@@ -141,10 +149,10 @@ namespace delete_platform_namespace{
   }
 
   /*control is scan data coming from expected points (assume that lines are intersection each other)*/
-  bool PlatformFilter::exactlyPlatfrom(line_segment* scan, line_segment* platform)
+  bool PlatformFilter::exactlyPlatform(line_segment* scan, line_segment* platform)
   {
     int constant = laser_z_;//depends on robots' height
-    float tolarance = 0.1;
+    float tolerance = 0.1;
     platform->b += constant;
     double old_range_x1 = platform->range_x1;
     double old_range_x2 = platform->range_x2;
@@ -156,8 +164,8 @@ namespace delete_platform_namespace{
     platform->range_x2 = old_range_x2 + std::cos(platform->m/180)*constant;
     platform->range_y1 = old_range_y1 + std::sin(platform->m/180)*constant;
     platform->range_y2 = old_range_y2 + std::sin(platform->m/180)*constant;
-    if( (platform->m * scan->range_x2 + platform->b + constant + tolarance) <= scan->range_y2 &&
-      (platform->m * scan->range_x2 + platform->b + constant - tolarance) >= scan->range_y2)
+    if( (platform->m * scan->range_x2 + platform->b + constant + tolerance) <= scan->range_y2 &&
+      (platform->m * scan->range_x2 + platform->b + constant - tolerance) >= scan->range_y2)
       if(scan->range_x2 > platform->range_x1 && scan->range_x2 < platform->range_x2)
         if(scan->range_y2 > platform->range_y1 && scan->range_y2 < platform->range_y2)
           return true;
@@ -166,8 +174,8 @@ namespace delete_platform_namespace{
     platform->range_x2 = old_range_x2 - std::cos(platform->m/180)*constant;
     platform->range_y1 = old_range_y1 - std::sin(platform->m/180)*constant;
     platform->range_y2 = old_range_y2 - std::sin(platform->m/180)*constant;
-    if( (platform->m * scan->range_x2 + platform->b + constant + tolarance) <= scan->range_y2 &&
-      (platform->m * scan->range_x2 + platform->b + constant - tolarance) >= scan->range_y2)
+    if( (platform->m * scan->range_x2 + platform->b + constant + tolerance) <= scan->range_y2 &&
+      (platform->m * scan->range_x2 + platform->b + constant - tolerance) >= scan->range_y2)
       if(scan->range_x2 > platform->range_x1 && scan->range_x2 < platform->range_x2)
         if(scan->range_y2 > platform->range_y1 && scan->range_y2 < platform->range_y2)
           return true;
@@ -175,7 +183,8 @@ namespace delete_platform_namespace{
     return false;
   }
 
-  void PlatformFilter::tf_update(){
+  void PlatformFilter::tf_update()
+  {
     tf::StampedTransform tf_transform_laser;
     try{
       tf_listener_.lookupTransform("/map", "/base_scan", ros::Time(0), tf_transform_laser);//laser's position according to map
@@ -188,5 +197,30 @@ namespace delete_platform_namespace{
     laser_z_ = tf_transform_laser.getOrigin().z();
   
     laser_yaw_ = tf_transform_laser.getRotation().getAngle();
+  }
+
+  bool PlatformFilter::boost_intersection(std::vector<geometry_msgs::Point32> *points_of_platform, double l_end_x, double l_end_y)
+  {
+    typedef boost::geometry::model::d2::point_xy<double> P; 
+    boost::geometry::model::linestring<P> line_p, line_s;
+    std::string p_string, s_string;//platfrom string , scanner string
+
+    std::vector<geometry_msgs::Point32>::iterator beginnning = points_of_platform->begin();
+    std::vector<geometry_msgs::Point32>::iterator end = points_of_platform->end();
+    std::vector<geometry_msgs::Point32>::iterator index = beginnning;
+    p_string += "linestring(";
+    while(&(*index) != &(*end)){
+      p_string += std::to_string((*index).x) + " " + std::to_string((*index).y);
+      index++;
+      if(&(*index) != &(*end))
+        p_string += ",";
+    }
+    p_string += ")";
+
+    s_string += "linestring(" + std::to_string(laser_x_) + " " + std::to_string(laser_y_) 
+                           + "," + std::to_string(l_end_x) + " " + std::to_string(l_end_y) + ")";
+    boost::geometry::read_wkt(p_string, line_p);
+    boost::geometry::read_wkt(s_string, line_s);
+    return boost::geometry::intersects(line_s, line_p);
   }
 }
