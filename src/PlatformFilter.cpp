@@ -46,42 +46,39 @@ namespace delete_platform_namespace{
       float angle = data_in.angle_min;
       for(std::vector<float>::iterator it = data_out.ranges.begin();&(*it) != &(*data_out.ranges.end()); it++)
       {
-        if(!isOnPlatform())
+        if(*it != std::numeric_limits<float>::quiet_NaN() && isIntersection(angle, *it))//controls the intersection of scan and
+                                              //platfroms' beginnning and also questions 
+                                             //is really coming from platfrom
         {
-          if(*it != std::numeric_limits<float>::quiet_NaN() && isIntersection(angle, *it))//controls the intersection of scan and
-                                                //platfroms' beginnning and also questions 
-                                               //is really coming from platfrom
+          if(in_range)//possible end of the intersection
           {
-            if(in_range)//possible end of the intersection
-            {
-              end_it = it;
-            }
-            else
-            {
-              beginnning_it = it;
-              platform_angle_range_.push(beginnning_it);
-              in_range = true;
-            }
+            end_it = it;
           }
           else
           {
-            if(in_range)//if intersection was started it is over anymore
-            {
-              //push the end of the range
-              platform_angle_range_.push(end_it);
+            beginnning_it = it;
+            platform_angle_range_.push(beginnning_it);
+            in_range = true;
+          }
+        }
+        else
+        {
+          if(in_range)//if intersection was started it is over anymore
+          {
+            //push the end of the range
+            platform_angle_range_.push(end_it);
 
-              //pop the range
-              std::vector<float>::iterator end = platform_angle_range_.back();
-              platform_angle_range_.pop();
-              std::vector<float>::iterator begin = platform_angle_range_.back();
-              platform_angle_range_.pop();
-              /*delete the intersection range*/
-              for(std::vector<float>::iterator index = begin; &(*index) != &(*end); index++)
-              {
-              *index = std::numeric_limits<float>::quiet_NaN();
-              }
-            in_range = false;
+            //pop the range
+            std::vector<float>::iterator end = platform_angle_range_.back();
+            platform_angle_range_.pop();
+            std::vector<float>::iterator begin = platform_angle_range_.back();
+            platform_angle_range_.pop();
+            /*delete the intersection range*/
+            for(std::vector<float>::iterator index = begin; &(*index) != &(*end); index++)
+            {
+            *index = std::numeric_limits<float>::quiet_NaN();
             }
+          in_range = false;
           }
         }
         angle+=data_in.angle_increment;//find another way
@@ -170,7 +167,7 @@ namespace delete_platform_namespace{
     double old_range_y1 = platform->range_y1;
     double old_range_y2 = platform->range_y2;
 
-    /*add or subtract according to where comes the laser data, (behind or front)*/
+    /*add or substract according to where comes the laser data, (behind or front)*/
     platform->range_x1 = old_range_x1 + std::cos(platform->m/180)*constant;
     platform->range_x2 = old_range_x2 + std::cos(platform->m/180)*constant;
     platform->range_y1 = old_range_y1 + std::sin(platform->m/180)*constant;
@@ -189,7 +186,7 @@ namespace delete_platform_namespace{
       (platform->m * scan->range_x2 + platform->b + constant - tolarance) >= scan->range_y2)
       if(scan->range_x2 > platform->range_x1 && scan->range_x2 < platform->range_x2)
         if(scan->range_y2 > platform->range_y1 && scan->range_y2 < platform->range_y2)
-          return true; // Bunlar tab
+          return true;
 
     return false;
   }
