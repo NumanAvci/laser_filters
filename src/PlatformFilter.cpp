@@ -106,7 +106,7 @@ namespace delete_platform_namespace{
 
       double difference_slope = platforms_line.m - scanning_line.m;//m1-m2=m_new
       double difference_bValue = platforms_line.b - scanning_line.b;//b1-b2=b_new
-      if(difference_slope == 0)//platform and scanning vector are parallel or coincident
+      if(difference_slope <= 0.05 && difference_slope >= -0.05)//platform and scanning vector are parallel or coincident
         continue;
 
       double intersection_point_x = (0-difference_bValue)/difference_slope;//-b_new/m_new
