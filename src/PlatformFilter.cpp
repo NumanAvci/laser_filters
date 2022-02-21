@@ -8,7 +8,7 @@
 namespace delete_platform_namespace{
 		
   
-  virtual bool PlatformFilter::configure(){
+  bool PlatformFilter::configure(){
     ros::NodeHandle nh;
     platfrom_sub_ = nh.subscribe("/platforms", 1000, &PlatformFilter::PlatformCallBack, this);
     //robot_position_sub_ = nh.subscribe("/position", 1000, &PlatformFilter::PlatformCallBack, this);
