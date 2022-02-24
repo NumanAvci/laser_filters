@@ -115,24 +115,6 @@ namespace delete_platform_namespace{
         	if(exactlyPlatform(&scanning_line, s_polygon, &points_of_platform));
         		return true;
         //}
-      /*
-      line_segment platforms_line = calculateLine((*beginnning).x, (*beginnning).y, (*end).x, (*end).y);
-
-      double difference_slope = platforms_line.m - scanning_line.m;//m1-m2=m_new
-      double difference_bValue = platforms_line.b - scanning_line.b;//b1-b2=b_new
-      if(difference_slope <= 0.05 && difference_slope >= -0.05)//platform and scanning vector are parallel or coincident
-        continue;
-
-      double intersection_point_x = (0-difference_bValue)/difference_slope;//-b_new/m_new
-      double intersection_point_y = platforms_line.m * intersection_point_x + platforms_line.b;//m1x+b1
-
-      /*controling range of intersection_point
-      if(intersection_point_x > platforms_line.range_x1 && intersection_point_x < platforms_line.range_x2
-        && intersection_point_x > scanning_line.range_x1 && intersection_point_x < scanning_line.range_x2)
-        if(intersection_point_y > platforms_line.range_y1 && intersection_point_y < platforms_line.range_y2
-        && intersection_point_y > scanning_line.range_y1 && intersection_point_y < scanning_line.range_y2)
-          return exactlyPlatform(&scanning_line, &platforms_line);
-      */
     }
 
     return false;
@@ -172,37 +154,6 @@ namespace delete_platform_namespace{
     boost::geometry::read_wkt(scan_string, scan_line);
     boost::geometry::read_wkt(str_polygon, platform);
     return boost::geometry::intersects(scan_line, platform);
-    /*
-    platform->b += constant;
-    
-    double old_range_x1 = platform->range_x1;
-    double old_range_x2 = platform->range_x2;
-    double old_range_y1 = platform->range_y1;
-    double old_range_y2 = platform->range_y2;
-
-    /*add or substract according to where comes the laser data, (behind or front)
-    platform->range_x1 = old_range_x1 + std::cos(platform->m/180)*constant;
-    platform->range_x2 = old_range_x2 + std::cos(platform->m/180)*constant;
-    platform->range_y1 = old_range_y1 + std::sin(platform->m/180)*constant;
-    platform->range_y2 = old_range_y2 + std::sin(platform->m/180)*constant;
-    if( (platform->m * scan->range_x2 + platform->b + constant + tolerance) <= scan->range_y2 &&
-      (platform->m * scan->range_x2 + platform->b + constant - tolerance) >= scan->range_y2)
-      if(scan->range_x2 > platform->range_x1 && scan->range_x2 < platform->range_x2)
-        if(scan->range_y2 > platform->range_y1 && scan->range_y2 < platform->range_y2)
-          return true;
-
-    platform->range_x1 = old_range_x1 - std::cos(platform->m/180)*constant;
-    platform->range_x2 = old_range_x2 - std::cos(platform->m/180)*constant;
-    platform->range_y1 = old_range_y1 - std::sin(platform->m/180)*constant;
-    platform->range_y2 = old_range_y2 - std::sin(platform->m/180)*constant;
-    if( (platform->m * scan->range_x2 + platform->b + constant + tolerance) <= scan->range_y2 &&
-      (platform->m * scan->range_x2 + platform->b + constant - tolerance) >= scan->range_y2)
-      if(scan->range_x2 > platform->range_x1 && scan->range_x2 < platform->range_x2)
-        if(scan->range_y2 > platform->range_y1 && scan->range_y2 < platform->range_y2)
-          return true;
-
-    return false;
-    */
   }
 
   void PlatformFilter::tf_update()
