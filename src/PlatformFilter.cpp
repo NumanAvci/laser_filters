@@ -21,7 +21,7 @@ namespace delete_platform_namespace{
   /*marking the ranges of intersection of scan data to the platform*/
   bool PlatformFilter::update(const sensor_msgs::LaserScan& data_in, sensor_msgs::LaserScan& data_out)
   {
-    tf_update();
+    tf_update();//taking tf data
     data_out = data_in;
     if(platforms_ready_ )//is published the platforms by the user
     {
@@ -82,6 +82,8 @@ namespace delete_platform_namespace{
   void PlatformFilter::PlatformCallBack(const laser_filters::Polygon_array::ConstPtr& msg)
   {
     platform_array_ = msg->points_to_points;
+    pitches_ = msg->angles;
+    carry_lines();
     platforms_ready_ = true;
   }
 
@@ -97,17 +99,22 @@ namespace delete_platform_namespace{
     
     line_segment scanning_line = calculateLine(laser_x_, laser_y_, scanning_point_x, scanning_point_y);
 
-    for (std::vector<geometry_msgs::Polygon>::iterator i = platform_array_.begin(); &(*i) != &(*platform_array_.end()); ++i)
+    std::vector<geometry_msgs::Polygon>::iterator i1;
+    std::vector<std::string>::iterator i2;
+    for (i1 = platform_array_.begin(), i2 = strings_of_polygons_.begin(); &(*i1) != &(*platform_array_.end()); ++i1, i2++)
     {
-      std::vector<geometry_msgs::Point32> points_of_platform = i->points;
+      std::vector<geometry_msgs::Point32> points_of_platform = i1->points;
       std::vector<geometry_msgs::Point32>::iterator beginnning = points_of_platform.begin();
       std::vector<geometry_msgs::Point32>::iterator end = points_of_platform.end();
       std::vector<geometry_msgs::Point32>::iterator index = beginnning;
+      std::string s_polygon = *i2;
       
-        if(boost_intersection(&points_of_platform, scanning_point_x, scanning_point_y)){
+        //if(boost_intersection(&points_of_platform, scanning_point_x, scanning_point_y))
+        //{
           line_segment platforms_line = calculateLine((*beginnning).x, (*beginnning).y, (*end).x, (*end).y);
-        	return exactlyPlatform(&scanning_line, &platforms_line);
-        }
+        	if(exactlyPlatform(&scanning_line, s_polygon, &points_of_platform));
+        		return true;
+        //}
       /*
       line_segment platforms_line = calculateLine((*beginnning).x, (*beginnning).y, (*end).x, (*end).y);
 
@@ -148,18 +155,32 @@ namespace delete_platform_namespace{
     return line;
   }
 
-  /*control is scan data coming from expected points (assume that lines are intersection each other)*/
-  bool PlatformFilter::exactlyPlatform(line_segment* scan, line_segment* platform)
+  /*control that scan is data coming from expected points (assume that lines are intersection each other)*/
+  bool PlatformFilter::exactlyPlatform(line_segment* scan, std::string str_polygon, std::vector<geometry_msgs::Point32>* points_of_platform)
   {
     int constant = laser_z_;//depends on robots' height
     float tolerance = 0.1;
+
+    typedef boost::geometry::model::polygon<boost::geometry::model::d2::point_xy<double> > polygon;
+    polygon platform;
+    typedef boost::geometry::model::d2::point_xy<double> P; 
+    boost::geometry::model::linestring<P> scan_line;
+    std::string scan_string;
+    
+    scan_string = "linestring(" + std::to_string(scan->range_x1) + " " + std::to_string(scan->range_y1) 
+                           + "," + std::to_string(scan->range_x2) + " " + std::to_string(scan->range_y2) + ")";
+    boost::geometry::read_wkt(scan_string, scan_line);
+    boost::geometry::read_wkt(str_polygon, platform);
+    return boost::geometry::intersects(scan_line, platform);
+    /*
     platform->b += constant;
+    
     double old_range_x1 = platform->range_x1;
     double old_range_x2 = platform->range_x2;
     double old_range_y1 = platform->range_y1;
     double old_range_y2 = platform->range_y2;
 
-    /*add or substract according to where comes the laser data, (behind or front)*/
+    /*add or substract according to where comes the laser data, (behind or front)
     platform->range_x1 = old_range_x1 + std::cos(platform->m/180)*constant;
     platform->range_x2 = old_range_x2 + std::cos(platform->m/180)*constant;
     platform->range_y1 = old_range_y1 + std::sin(platform->m/180)*constant;
@@ -181,6 +202,7 @@ namespace delete_platform_namespace{
           return true;
 
     return false;
+    */
   }
 
   void PlatformFilter::tf_update()
@@ -199,7 +221,8 @@ namespace delete_platform_namespace{
     laser_yaw_ = tf_transform_laser.getRotation().getAngle();
   }
 
-  bool PlatformFilter::boost_intersection(std::vector<geometry_msgs::Point32> *points_of_platform, double l_end_x, double l_end_y)
+  /*control that the given platform and scan are intersect*/
+  bool PlatformFilter::boost_intersection(std::vector<geometry_msgs::Point32> *points_of_platform, double laser_end_x, double laser_end_y)
   {
     typedef boost::geometry::model::d2::point_xy<double> P; 
     boost::geometry::model::linestring<P> line_p, line_s;
@@ -208,7 +231,7 @@ namespace delete_platform_namespace{
     std::vector<geometry_msgs::Point32>::iterator beginnning = points_of_platform->begin();
     std::vector<geometry_msgs::Point32>::iterator end = points_of_platform->end();
     std::vector<geometry_msgs::Point32>::iterator index = beginnning;
-    p_string += "linestring(";
+    p_string = "linestring(";
     while(&(*index) != &(*end)){
       p_string += std::to_string((*index).x) + " " + std::to_string((*index).y);
       index++;
@@ -217,10 +240,62 @@ namespace delete_platform_namespace{
     }
     p_string += ")";
 
-    s_string += "linestring(" + std::to_string(laser_x_) + " " + std::to_string(laser_y_) 
-                           + "," + std::to_string(l_end_x) + " " + std::to_string(l_end_y) + ")";
+    s_string = "linestring(" + std::to_string(laser_x_) + " " + std::to_string(laser_y_) 
+                           + "," + std::to_string(laser_end_x) + " " + std::to_string(laser_end_y) + ")";
     boost::geometry::read_wkt(p_string, line_p);
     boost::geometry::read_wkt(s_string, line_s);
     return boost::geometry::intersects(line_s, line_p);
+  }
+
+  /*taken platforms' lines carry */
+  void PlatformFilter::carry_lines()
+  {
+  	std::string platform_string;
+  	float tolerance = 0.1;
+  	std::vector<double>::iterator pitch_angles = pitches_.begin();
+    for (std::vector<geometry_msgs::Polygon>::iterator i = platform_array_.begin(); &(*i) != &(*platform_array_.end()); ++i, 
+        pitch_angles++)
+    {
+    	std::vector<geometry_msgs::Point32> points_of_platform = i->points;
+      std::vector<geometry_msgs::Point32>::iterator beginnning = points_of_platform.begin();
+      std::vector<geometry_msgs::Point32>::iterator end = points_of_platform.end();
+      std::vector<geometry_msgs::Point32>::iterator index = beginnning;
+      platform_string = "POLYGON(";
+      double a[2];
+	    while(&(*index) != &(*end))
+      {
+        if(&(*(index+1))  != &(*end) )
+          calculate_direction(a ,calculateLine(index->x, index->y, (index+1)->x, (index+1)->y), *pitch_angles);
+        platform_string += std::to_string((*index).x + a[0] + tolerance) + " " + std::to_string((*index).y + a[1] + tolerance);
+        index++;
+        platform_string += ",";
+      }
+      index--;
+      //reverse
+      while(&(*index) != &(*beginnning))
+      {
+        calculate_direction(a, calculateLine(index->x, index->y, (index-1)->x, (index-1)->y), *pitch_angles);
+        platform_string += std::to_string((*index).x + a[0] - tolerance) + " " + std::to_string((*index).y + a[1] - tolerance);
+        index--;
+        if(&(*index) != &(*beginnning))
+        {
+          platform_string += ",";
+        }
+        else
+        {
+        	platform_string += std::to_string((*index).x + a[0] - tolerance) + " " + std::to_string((*index).y + a[1]- tolerance);
+        	break;
+        }
+      }
+      platform_string += "," + std::to_string((*beginnning).x + a[0] + tolerance) + " " + std::to_string((*beginnning).y + a[1] + tolerance) + ")";
+      strings_of_polygons_.push_back(platform_string);
+    }
+  }
+
+  void PlatformFilter::calculate_direction(double* a, line_segment slope, double pitch)
+  {
+    slope.m = -1.0/slope.m;//upright of itself
+    a[0] = std::cos(slope.m) * laser_z_ * (1.0/std::tan(pitch));
+    a[1] = (slope.m > 0) ? (std::sin(slope.m) * laser_z_ * (1.0/std::tan(pitch))) : (std::sin(slope.m) * laser_z_ * (1.0/std::tan(pitch)) * -1);
   }
 }
