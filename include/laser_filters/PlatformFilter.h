@@ -26,6 +26,11 @@ namespace delete_platform_namespace{
 		double range_y2;//max y value
 	};
 
+  struct polygons{
+    std::string *string_of_polygon;
+    double *transport;
+  };
+
 class PlatformFilter : public filters::FilterBase<sensor_msgs::LaserScan>
 {
 	public:
@@ -38,11 +43,12 @@ class PlatformFilter : public filters::FilterBase<sensor_msgs::LaserScan>
 		bool isIntersection(float angle, double range);
 		bool isOnPlatform();
 		line_segment calculateLine(double, double, double , double);
-		bool exactlyPlatform(line_segment* scan, std::string polygon, std::vector<geometry_msgs::Point32>* points_of_platform);
+		bool exactlyPlatform(line_segment* scan, std::string polygon);
+    bool farEnoughAway(line_segment* scan, double *transport);
 		void tf_update();
-		bool boost_intersection(std::vector<geometry_msgs::Point32> *points_of_platform, double l_end_x, double l_end_y);
+		bool boost_intersection(std::vector<geometry_msgs::Point32> *points_of_platform, double laser_end_x, double laser_end_y);
 		void carry_lines();
-    void calculate_direction(double*, line_segment, double);
+    void calculate_direction(double*, double, double);
 
 		ros::Subscriber platfrom_sub_;
 		tf::TransformListener tf_listener_;//for finding laser's position 
@@ -50,8 +56,9 @@ class PlatformFilter : public filters::FilterBase<sensor_msgs::LaserScan>
 		
 		double laser_x_, laser_y_, laser_z_, laser_yaw_;//coordinate of laser according to map
     std::vector<double> pitches_;
+    std::vector<double> platform_yaws_;
 		std::vector<geometry_msgs::Polygon> platform_array_;
-    std::vector<std::string> strings_of_polygons_;
+    std::vector<polygons> polygons_data_;
 		
 		bool platforms_ready_;
 		std::queue<std::vector<float>::iterator> platform_angle_range_;
