@@ -3,7 +3,6 @@
 
 //PLUGINLIB_REGISTER_CLASS(simple_layers_PlatformFilter, delete_platform_namespace::PlatformFilter, filters::FilterBase<sensor_msgs::LaserScan>)
 
-
 namespace delete_platform_namespace{
 
   bool PlatformFilter::configure(){
@@ -74,7 +73,6 @@ namespace delete_platform_namespace{
     return true;
   }
 
-
   /*memorize the platforms position*/
   void PlatformFilter::PlatformCallBack(const laser_filters::Polygon_array::ConstPtr& msg)
   {
@@ -110,7 +108,8 @@ namespace delete_platform_namespace{
       std::string *s_polygons;
       s_polygons = it_polygons->string_of_polygon;
       std::string s_polygon;
-      if(angle_of_alfa - *yaws_it > 90 && angle_of_alfa - *yaws_it < 270)
+      double change = abs(angle_of_alfa - *yaws_it);
+      if( (change > 90 && change < 270))
         s_polygon = s_polygons[0];
       else
         s_polygon = s_polygons[1];
