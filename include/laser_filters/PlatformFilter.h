@@ -16,7 +16,8 @@
 #include <sensor_msgs/LaserScan.h>
 
 namespace delete_platform_namespace{
-	
+	const double PI = std::acos(-1);
+
 	struct line_segment{//mx + b [x1:x2, y1:y2]
 		double m;//slope
 		double b;//constant
@@ -27,8 +28,9 @@ namespace delete_platform_namespace{
 	};
 
   struct polygons{
-    std::string *string_of_polygon;
-    double *transport;
+    std::string string_of_polygon[2];//[1] on the zone, [0] on the platform
+    std::string string_of_zone;//platform's own polygon
+    double transport[2];//delta x and delta y for carrying polygon
   };
 
 class PlatformFilter : public filters::FilterBase<sensor_msgs::LaserScan>
@@ -39,16 +41,16 @@ class PlatformFilter : public filters::FilterBase<sensor_msgs::LaserScan>
 		virtual bool configure();
   
 	private:
-		void PlatformCallBack(const laser_filters::Polygon_array::ConstPtr& msg);
+		void PlatformZoneCallBack(const laser_filters::Polygon_array::ConstPtr& msg);
 		bool isIntersection(float angle, double range);
-		bool isOnPlatform();
 		line_segment calculateLine(double, double, double , double);
 		bool exactlyPlatform(line_segment* scan, std::string polygon);
-    bool farEnoughAway(line_segment* scan, double *transport);
+    bool CloseEnough(line_segment* scan, std::vector<geometry_msgs::Point32> *);
+    bool isOnGround(std::string);
 		void tf_update();
-		bool boost_intersection(std::vector<geometry_msgs::Point32> *points_of_platform, double laser_end_x, double laser_end_y);
-		void carry_lines();
+		void CarryPolygons();
     void calculate_direction(double*, double, double);
+    void calculate_yaw(double*, std::vector<geometry_msgs::Point32>*);
 
 		ros::Subscriber platfrom_sub_;
 		tf::TransformListener tf_listener_;//for finding laser's position 
@@ -56,12 +58,13 @@ class PlatformFilter : public filters::FilterBase<sensor_msgs::LaserScan>
 		
 		double laser_x_, laser_y_, laser_z_, laser_yaw_;//coordinate of laser according to map
     std::vector<double> pitches_;
-    std::vector<double> platform_yaws_;
 		std::vector<geometry_msgs::Polygon> platform_array_;
     std::vector<polygons> polygons_data_;
 		
-		bool platforms_ready_;
-		std::queue<std::vector<float>::iterator> platform_angle_range_;
+		bool platforms_ready_;//when platform data came, it is true
+    bool is_on_ground_;// if robot not on the upside of platform or on the platform, it is true
+		std::queue<float*> platform_angle_range_;
+    std::string platforms_id_;
 };
 
 }
