@@ -35,36 +35,7 @@ namespace delete_platform_namespace{
         if(*it != std::numeric_limits<float>::quiet_NaN() && isIntersection(angle, *it))//questions is really coming from platfrom
         {
         	*it = std::numeric_limits<float>::quiet_NaN();
-          /*if(in_range)//possible end of the intersection
-          {
-            end_it = it;
-          }
-          else
-          {
-            beginnning_it = it;
-            platform_angle_range_.push(beginnning_it);
-            in_range = true;
-          }
-        }
-        else
-        {
-          if(in_range)//if intersection was started it is over anymore
-          {
-            //push the end of the range
-            platform_angle_range_.push(end_it);
-
-            //pop the range
-            float* end = platform_angle_range_.back();
-            platform_angle_range_.pop();
-            float* begin = platform_angle_range_.back();
-            platform_angle_range_.pop();
-            /*delete the intersection range
-            for(float *index = begin; index != end; index++)
-            {
-            *index = std::numeric_limits<float>::quiet_NaN();
-            }
-          in_range = false;
-          }*/
+          
         }
         angle+=data_in.angle_increment;//find another way
         /*angle = end - it - 1; -> give the angle
@@ -278,7 +249,7 @@ namespace delete_platform_namespace{
     middle_y /= vec->size();
     double mid_beg_plat_x = ( vec->begin()->x + (vec->begin()+1)->x ) / 2;
     double mid_beg_plat_y = ( vec->begin()->y + (vec->begin()+1)->y ) / 2;
-    ROS_INFO("org_plat_x:%forg_plat_y:%f beg_plat_x:%f\tbeg_plat_y:%f",middle_x, middle_y, mid_beg_plat_x, mid_beg_plat_y);
+    //ROS_INFO("org_plat_x:%forg_plat_y:%f beg_plat_x:%f\tbeg_plat_y:%f",middle_x, middle_y, mid_beg_plat_x, mid_beg_plat_y);
     if(middle_x - mid_beg_plat_x == 0)
     	if(middle_y - mid_beg_plat_y < 0)
         *yaw = 180;
