@@ -27,12 +27,10 @@ namespace delete_platform_namespace{
     data_out = data_in;
     if(platforms_ready_ )//is published the platforms by the user
     {
-      bool in_range = false;
-      float *beginnning_it, *end_it;
       float angle = data_in.angle_min;
       for(float *it = &data_out.ranges.front();it != (&data_out.ranges.back())+1; it++)//iteration all scan data
       {
-        if(*it != std::numeric_limits<float>::quiet_NaN() && isIntersection(angle, *it))//questions is really coming from platfrom
+        if(*it >= data_out.range_min && *it <= data_out.range_max && isIntersection(angle, *it))//questions is really coming from platfrom
         {
         	*it = std::numeric_limits<float>::quiet_NaN();
           
@@ -53,7 +51,7 @@ namespace delete_platform_namespace{
   {
   	/*if it is a new call or first call*/
     if(platforms_id_.compare(msg->id.c_str()) != 0 || platforms_id_.compare("") == 0 ){
-    	if(msg->points_to_points.size() == 4)
+    	if(msg->points_to_points.front().points.size() == 4)//fix
     	{
     	  platform_array_ = msg->points_to_points;
         pitches_ = msg->angles;
@@ -62,10 +60,14 @@ namespace delete_platform_namespace{
         platforms_ready_ = true;
       }
       else
+      {
       	platforms_ready_ = false;//we can not accept wrong data
+      }
     }
-    if(msg->id.compare(""))//if id is not, all platforms can delete
+    if(msg->id.compare("") == 0)//if id is not, all platforms can delete
+    {
     	platforms_ready_ = false;
+    }
   }
 
   /*control the intersection of reading scanning data to the one of the platforms*/
@@ -87,17 +89,18 @@ namespace delete_platform_namespace{
 
       std::string s_polygon;
 
-      //ROS_INFO("UPDATING %f ...", (double)(platform_array_.end()-ptr_platform));
+      //ROS_INFO("UPDATING %i ...", CloseEnough(&scanning_line, &points_of_platform));
       if(CloseEnough(&scanning_line, &points_of_platform)){//if it is far we do nat control
-        
         //isOnGround((*it_polygons).string_of_zone)
         if(!isOnGround((*it_polygons).string_of_zone) )
        	  s_polygon = (*it_polygons).string_of_polygon[0];//control the polygon that is on the zone
      	  else
           s_polygon = (*it_polygons).string_of_polygon[1];//control the polygon that is on the ground
 
-        if(exactlyPlatform(&scanning_line, s_polygon))
+        if(exactlyPlatform(&scanning_line, s_polygon)){
+          //ROS_INFO("inside platform");
           return true;
+        }
       }
     }
 
@@ -166,6 +169,7 @@ namespace delete_platform_namespace{
       }
       catch (tf::TransformException &ex) {
         ROS_ERROR("%s",ex.what()); 
+        ros::Duration(0.5).sleep();
         tf_not_ready = true;
       }
     }
@@ -174,6 +178,7 @@ namespace delete_platform_namespace{
     laser_y_ = tf_transform_laser.getOrigin().y();
     laser_z_ = tf_transform_laser.getOrigin().z();
     laser_yaw_ = tf_transform_laser.getRotation().getAngle();
+
   }
 
   /*platforms' lines taken carry to the zone and ground*/
@@ -199,8 +204,10 @@ namespace delete_platform_namespace{
       {
       	if(index-beginnning < 2)//first two point is our displacment line
       	{
-          temp.string_of_polygon[0] += std::to_string((*index).x + temp.transport[0] + tolerance) + " " + std::to_string((*index).y + temp.transport[1] + tolerance);
-          temp.string_of_polygon[1] += std::to_string((*index).x - temp.transport[0] + tolerance) + " " + std::to_string((*index).y - temp.transport[1] + tolerance);
+          temp.string_of_polygon[0] += std::to_string((*index).x + temp.transport[0] + (std::cos(PI*yaw/180) * tolerance)) + " "
+                             + std::to_string((*index).y + temp.transport[1] + (std::sin(PI*yaw/180) * tolerance));
+          temp.string_of_polygon[1] += std::to_string((*index).x - temp.transport[0] + (std::cos(PI*yaw/180) * tolerance)) + " "
+                             + std::to_string((*index).y - temp.transport[1] + (std::sin(PI*yaw/180) * tolerance));
           temp.string_of_polygon[1] += ",";
           temp.string_of_polygon[0] += ",";
         }
@@ -212,29 +219,36 @@ namespace delete_platform_namespace{
       index = beginnning + 2;//yes, it has extra one iteration
 
       //reverse order
-      while(index != beginnning)/*it is not necessary that iteration of end to beginning, iterate just first two point*/
+      while(index != beginnning-1)/*it is not necessary that iteration of end to beginning, iterate just first two point*/
       {
       	if(index-beginnning < 2)
       	{
-          temp.string_of_polygon[0] += std::to_string((*index).x + temp.transport[0] - tolerance) + " " + std::to_string((*index).y + temp.transport[1] - tolerance);
-          temp.string_of_polygon[1] += std::to_string((*index).x - temp.transport[0] - tolerance) + " " + std::to_string((*index).y - temp.transport[1] - tolerance);
+          temp.string_of_polygon[0] += std::to_string((*index).x + temp.transport[0] - (std::cos(PI*yaw/180) * tolerance)) + " "
+                             + std::to_string((*index).y + temp.transport[1] - (std::sin(PI*yaw/180) * tolerance));
+          temp.string_of_polygon[1] += std::to_string((*index).x - temp.transport[0] - (std::cos(PI*yaw/180) * tolerance)) + " "
+                             + std::to_string((*index).y - temp.transport[1] - (std::sin(PI*yaw/180) * tolerance));
           temp.string_of_polygon[1] += ",";
           temp.string_of_polygon[0] += ",";
         }
         index--;
       }
-      temp.string_of_polygon[0] += std::to_string((*beginnning).x + temp.transport[0] + tolerance) + " " + std::to_string((*beginnning).y + temp.transport[1] + tolerance) + "))";
-      temp.string_of_polygon[1] += std::to_string((*beginnning).x - temp.transport[0] + tolerance) + " " + std::to_string((*beginnning).y - temp.transport[1] + tolerance) + "))";
-      //ROS_INFO("CARRY:%f\t%f\n" , a[1], a[0]);
+      temp.string_of_polygon[0] += std::to_string((*beginnning).x + temp.transport[0] + (std::cos(PI*yaw/180) * tolerance)) + " "
+                             + std::to_string((*beginnning).y + temp.transport[1] + (std::sin(PI*yaw/180) * tolerance)) + "))";
+      temp.string_of_polygon[1] += std::to_string((*beginnning).x - temp.transport[0] + (std::cos(PI*yaw/180) * tolerance)) + " "
+                             + std::to_string((*beginnning).y - temp.transport[1] + (std::sin(PI*yaw/180) * tolerance)) + "))";
+      
       polygons_data_.push_back(temp);
       pitch_angles++;
+
+    ROS_INFO("Polygons carried. polygon on the zone:%s \npolygon on the ground:%s\npolygon zones itself:%s\ndirection_x:%f\tdirection_y:%f",
+    	temp.string_of_polygon[0].c_str(), temp.string_of_polygon[1].c_str(), temp.string_of_zone.c_str(), temp.transport[0], temp.transport[1]);
     }
   }
   /*calculate the direction to the line according to pitch and assign to a variable*/
   void PlatformFilter::calculate_direction(double *a, double pitch, double yaw)
   {
-    a[0] = std::sin(PI*yaw/180) * laser_z_ * (1.0/std::tan(PI*pitch/180));//x direction
-    a[1] = std::cos(PI*yaw/180) * laser_z_ * (1.0/std::tan(PI*pitch/180));
+    a[1] = std::sin(PI*yaw/180) * laser_z_ * (1.0/std::tan(PI*pitch/180));//x direction
+    a[0] = std::cos(PI*yaw/180) * laser_z_ * (1.0/std::tan(PI*pitch/180));
   }
   /*calculate middle of the polygon and set the yaw as a vector that is through beginning line's middle to that point*/
   void PlatformFilter::calculate_yaw(double *yaw, std::vector<geometry_msgs::Point32> *vec)
