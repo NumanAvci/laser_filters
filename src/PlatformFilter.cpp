@@ -57,13 +57,13 @@ namespace delete_platform_namespace{
       CarryPolygons();//creating polygon strings that describe places where scan data can come from
       //CarryPolygon function will change the value of platforms_ready_ because of controlling data accurancy
     }
-    if(msg->id.compare("") == 0)//if id is not, all platforms can delete
+    if(msg->id.compare("") == 0)//if id is not given, all platforms are not executed
     {
     	platforms_ready_ = false;
     }
   }
 
-  /*control the intersection of reading scanning data to the one of the platforms*/
+  /*control the intersection of reading scanning data to the any of the platforms*/
   bool PlatformFilter::isIntersection(float angle, double range)
   {
     double angle_of_alfa = angle + (laser_yaw_);
@@ -105,9 +105,9 @@ namespace delete_platform_namespace{
     typedef boost::geometry::model::polygon<boost::geometry::model::d2::point_xy<double> > polygon;
     polygon platform;
     boost::geometry::read_wkt(str_polygon, platform);
-    return boost::geometry::disjoint(platform, point_2d);//if it is inside the platform, it is not on the ground
+    return boost::geometry::disjoint(platform, point_2d);//if it is outside of the platform, it is on the ground
   }
-  /*close enough to control that platform*/
+  /*check is it close enough to control that platform*/
   bool PlatformFilter::CloseEnough(line_segment *scan, std::vector<geometry_msgs::Point32> *points_of_platform)//can be develop
   {
   	double change_x, change_y, mid_beg_plat_x, mid_beg_plat_y;
@@ -118,7 +118,7 @@ namespace delete_platform_namespace{
   	double distance = std::sqrt((change_y*change_y) + (change_x*change_x)); 
   	return distance <= 10; 
   }
-  /*create a line segment data according to input*/
+  /*create a struct of line segment data according to input*/
   line_segment PlatformFilter::calculateLine(double beginning_x, double beginning_y, double end_x, double end_y)
   {
     line_segment line;
@@ -141,7 +141,7 @@ namespace delete_platform_namespace{
     return line;
   }
 
-  /*control that scan is data coming from expected points*/
+  /*control that is scan data coming from expected points that named str_polygon*/
   bool PlatformFilter::exactlyPlatform(line_segment *scan, std::string str_polygon)
   {
     int constant = laser_z_;//depends on robots' height
@@ -176,14 +176,14 @@ namespace delete_platform_namespace{
       }
     }
       
-    laser_x_ = tf_transform_laser.getOrigin().x();///0.05 - 0.600673;//coordinate of laser according to map
-    laser_y_ = tf_transform_laser.getOrigin().y();///0.05 + 0,600673;
+    laser_x_ = tf_transform_laser.getOrigin().x();//coordinate of laser according to map
+    laser_y_ = tf_transform_laser.getOrigin().y();
     laser_z_ = tf_transform_laser.getOrigin().z();
     laser_yaw_ = tf_transform_laser.getRotation().getAngle();
 
   }
 
-  /*platforms' lines taken carry to the zone and ground*/
+  /*platforms' lines taken carry to the zone and ground(named polygon)*/
   void PlatformFilter::CarryPolygons()
   {
     float tolerance = 0.1;
@@ -252,11 +252,11 @@ namespace delete_platform_namespace{
     }
     platforms_ready_ = true;
   }
-  /*calculate the direction to the line according to pitch and assign to a variable*/
-  void PlatformFilter::calculate_direction(double *a, double pitch, double yaw)
+  /*calculate the displacement direction for the beginning line according to pitch and yaw ,and assign to variable*/
+  void PlatformFilter::calculate_direction(double *direction, double pitch, double yaw)
   {
-    a[1] = std::sin(PI*yaw/180) * laser_z_ * (1.0/std::tan(PI*pitch/180));//y direction
-    a[0] = std::cos(PI*yaw/180) * laser_z_ * (1.0/std::tan(PI*pitch/180));
+    direction[1] = std::sin(PI*yaw/180) * laser_z_ * (1.0/std::tan(PI*pitch/180));//y direction
+    direction[0] = std::cos(PI*yaw/180) * laser_z_ * (1.0/std::tan(PI*pitch/180));
   }
   /*calculate middle of the polygon and set the yaw as a vector that is through beginning line's middle to that point*/
   void PlatformFilter::calculate_yaw(double *yaw, std::vector<geometry_msgs::Point32> *vec)
