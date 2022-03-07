@@ -51,18 +51,11 @@ namespace delete_platform_namespace{
   {
   	/*if it is a new call or first call*/
     if(platforms_id_.compare(msg->id.c_str()) != 0 || platforms_id_.compare("") == 0 ){
-    	if(msg->points_to_points.front().points.size() == 4)//fix
-    	{
-    	  platform_array_ = msg->points_to_points;
-        pitches_ = msg->angles;
-    	  platforms_id_ = msg->id;
-        CarryPolygons();//creating polygon strings that describe places where scan data can come from
-        platforms_ready_ = true;
-      }
-      else
-      {
-      	platforms_ready_ = false;//we can not accept wrong data
-      }
+    	platform_array_ = msg->points_to_points;
+      pitches_ = msg->angles;
+  	  platforms_id_ = msg->id;
+      CarryPolygons();//creating polygon strings that describe places where scan data can come from
+      //CarryPolygon function will change the value of platforms_ready_ because of controlling data accurancy
     }
     if(msg->id.compare("") == 0)//if id is not, all platforms can delete
     {
@@ -113,7 +106,7 @@ namespace delete_platform_namespace{
     typedef boost::geometry::model::polygon<boost::geometry::model::d2::point_xy<double> > polygon;
     polygon platform;
     boost::geometry::read_wkt(str_polygon, platform);
-    return !boost::geometry::disjoint(platform, point_2d);
+    return !boost::geometry::disjoint(platform, point_2d);//if it is inside the platform, it is not on the ground
   }
   /*close enough to control that platform*/
   bool PlatformFilter::CloseEnough(line_segment *scan, std::vector<geometry_msgs::Point32> *points_of_platform)//can be develop
@@ -124,13 +117,23 @@ namespace delete_platform_namespace{
   	change_x = mid_beg_plat_x - scan->range_x1;
   	change_y = mid_beg_plat_y - scan->range_y1;
   	double distance = std::sqrt((change_y*change_y) + (change_x*change_x)); 
-  	return distance < 10; 
+  	return distance <= 10; 
   }
   /*create a line segment data according to input*/
   line_segment PlatformFilter::calculateLine(double beginning_x, double beginning_y, double end_x, double end_y)
   {
     line_segment line;
-    line.m = (end_y - beginning_y) / (end_x - beginning_x);
+    if(end_x - beginning_x != 0)
+      line.m = (end_y - beginning_y) / (end_x - beginning_x);
+    else
+    {
+    	if(end_y - beginning_y > 0)
+    		line.m = 90;
+    	else if(end_y - beginning_y < 0)
+    		line.m = 180;
+    	else
+    		line.m = 0;
+    }
     line.b = end_y - line.m * end_x;
     line.range_x1 = beginning_x;
     line.range_x2 = end_x;
@@ -192,6 +195,11 @@ namespace delete_platform_namespace{
       polygons temp;
       double yaw;
       std::vector<geometry_msgs::Point32> points_of_platform = i.points;
+      if(points_of_platform.size() != 4)
+      {
+        platforms_ready_ = false;
+        return;
+      }
       geometry_msgs::Point32 *beginnning = &points_of_platform.front();
       geometry_msgs::Point32 *end = (&points_of_platform.back()) + 1;
       geometry_msgs::Point32 *index = beginnning;
@@ -243,6 +251,7 @@ namespace delete_platform_namespace{
     ROS_INFO("Polygons carried. polygon on the zone:%s \npolygon on the ground:%s\npolygon zones itself:%s\ndirection_x:%f\tdirection_y:%f",
     	temp.string_of_polygon[0].c_str(), temp.string_of_polygon[1].c_str(), temp.string_of_zone.c_str(), temp.transport[0], temp.transport[1]);
     }
+    platforms_ready_ = true;
   }
   /*calculate the direction to the line according to pitch and assign to a variable*/
   void PlatformFilter::calculate_direction(double *a, double pitch, double yaw)
@@ -269,7 +278,7 @@ namespace delete_platform_namespace{
         *yaw = 180;
     	else if(middle_y - mid_beg_plat_y > 0)
     	  *yaw = 90;
-    else
+      else
     		*yaw = 0;
     else
       *yaw = std::atan((middle_y - mid_beg_plat_y) / (middle_x - mid_beg_plat_x));
