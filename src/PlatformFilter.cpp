@@ -66,9 +66,9 @@ namespace delete_platform_namespace{
   /*control the intersection of reading scanning data to the one of the platforms*/
   bool PlatformFilter::isIntersection(float angle, double range)
   {
-    double angle_of_alfa = angle + laser_yaw_;
-    double scanning_point_y = laser_y_ + range * std::sin(PI*angle_of_alfa/180);//according to map
-    double scanning_point_x = laser_x_ + range * std::cos(PI*angle_of_alfa/180);
+    double angle_of_alfa = angle + (PI*laser_yaw_/180);
+    double scanning_point_y = laser_y_ + range * std::sin(angle_of_alfa);//according to map
+    double scanning_point_x = laser_x_ + range * std::cos(angle_of_alfa);
     /*now we know that reading point, laser point, platforms' points*/
     
     line_segment scanning_line = calculateLine(laser_x_, laser_y_, scanning_point_x, scanning_point_y);
@@ -82,16 +82,15 @@ namespace delete_platform_namespace{
 
       std::string s_polygon;
 
-      //ROS_INFO("UPDATING %i ...", CloseEnough(&scanning_line, &points_of_platform));
-      if(CloseEnough(&scanning_line, &points_of_platform)){//if it is far we do nat control
+      if(CloseEnough(&scanning_line, &points_of_platform)){//if it is far we do not control
         //isOnGround((*it_polygons).string_of_zone)
-        if(!isOnGround((*it_polygons).string_of_zone) )
+        if(isOnGround((*it_polygons).string_of_zone) )
        	  s_polygon = (*it_polygons).string_of_polygon[0];//control the polygon that is on the zone
      	  else
-          s_polygon = (*it_polygons).string_of_polygon[1];//control the polygon that is on the ground
-
+          s_polygon = (*it_polygons).string_of_polygon[1];//control the polygon that is on the ground      
+        //ROS_INFO("isOnGround:%i", isOnGround((*it_polygons).string_of_zone));
         if(exactlyPlatform(&scanning_line, s_polygon)){
-          //ROS_INFO("inside platform");
+          ROS_INFO("DELETING point of:(%f,%f)", scanning_point_x, scanning_point_y);
           return true;
         }
       }
@@ -106,7 +105,7 @@ namespace delete_platform_namespace{
     typedef boost::geometry::model::polygon<boost::geometry::model::d2::point_xy<double> > polygon;
     polygon platform;
     boost::geometry::read_wkt(str_polygon, platform);
-    return !boost::geometry::disjoint(platform, point_2d);//if it is inside the platform, it is not on the ground
+    return boost::geometry::disjoint(platform, point_2d);//if it is inside the platform, it is not on the ground
   }
   /*close enough to control that platform*/
   bool PlatformFilter::CloseEnough(line_segment *scan, std::vector<geometry_msgs::Point32> *points_of_platform)//can be develop
@@ -177,8 +176,8 @@ namespace delete_platform_namespace{
       }
     }
       
-    laser_x_ = tf_transform_laser.getOrigin().x();//coordinate of laser according to map
-    laser_y_ = tf_transform_laser.getOrigin().y();
+    laser_x_ = tf_transform_laser.getOrigin().x();///0.05 - 0.600673;//coordinate of laser according to map
+    laser_y_ = tf_transform_laser.getOrigin().y();///0.05 + 0,600673;
     laser_z_ = tf_transform_laser.getOrigin().z();
     laser_yaw_ = tf_transform_laser.getRotation().getAngle();
 
@@ -256,7 +255,7 @@ namespace delete_platform_namespace{
   /*calculate the direction to the line according to pitch and assign to a variable*/
   void PlatformFilter::calculate_direction(double *a, double pitch, double yaw)
   {
-    a[1] = std::sin(PI*yaw/180) * laser_z_ * (1.0/std::tan(PI*pitch/180));//x direction
+    a[1] = std::sin(PI*yaw/180) * laser_z_ * (1.0/std::tan(PI*pitch/180));//y direction
     a[0] = std::cos(PI*yaw/180) * laser_z_ * (1.0/std::tan(PI*pitch/180));
   }
   /*calculate middle of the polygon and set the yaw as a vector that is through beginning line's middle to that point*/
@@ -281,6 +280,6 @@ namespace delete_platform_namespace{
       else
     		*yaw = 0;
     else
-      *yaw = std::atan((middle_y - mid_beg_plat_y) / (middle_x - mid_beg_plat_x));
+      *yaw = std::atan((middle_y - mid_beg_plat_y) / (middle_x - mid_beg_plat_x))*180/PI;
   }
 }
