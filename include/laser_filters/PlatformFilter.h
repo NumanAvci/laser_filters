@@ -47,10 +47,10 @@ class PlatformFilter : public filters::FilterBase<sensor_msgs::LaserScan>
 		bool exactlyPlatform(line_segment* scan, std::string polygon);
     bool CloseEnough(line_segment* scan, std::vector<geometry_msgs::Point32> *);
     bool isOnGround(std::string);
-		void tf_update();
+		void tfUpdate();
 		void CarryPolygons();
-    void calculate_direction(double*, double, double);
-    void calculate_yaw(double*, std::vector<geometry_msgs::Point32>*);
+    void calculateDirection(double*, double, double);
+    void calculateYaw(double*, std::vector<geometry_msgs::Point32>*);
 
 		ros::Subscriber platfrom_sub_;
 		tf::TransformListener tf_listener_;//for finding laser's position 

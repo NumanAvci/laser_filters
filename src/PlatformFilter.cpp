@@ -11,7 +11,7 @@ namespace delete_platform_namespace{
     platforms_ready_ = false;
     is_on_ground_ = true;
     platforms_id_ = "";
-    tf_update();
+    tfUpdate();
     ros::spinOnce();
     ROS_INFO("Configuration completed.");
   }
@@ -23,7 +23,7 @@ namespace delete_platform_namespace{
   /*marking the ranges of intersection of scan data to the platform*/
   bool PlatformFilter::update(const sensor_msgs::LaserScan& data_in, sensor_msgs::LaserScan& data_out)
   {
-    tf_update();//taking tf data
+    tfUpdate();//taking tf data
     data_out = data_in;
     if(platforms_ready_ )//is published the platforms by the user
     {
@@ -83,7 +83,6 @@ namespace delete_platform_namespace{
       std::string s_polygon;
 
       if(CloseEnough(&scanning_line, &points_of_platform)){//if it is far we do not control
-        //isOnGround((*it_polygons).string_of_zone)
         if(isOnGround((*it_polygons).string_of_zone) )
        	  s_polygon = (*it_polygons).string_of_polygon[0];//control the polygon that is on the zone
      	  else
@@ -160,7 +159,7 @@ namespace delete_platform_namespace{
     return boost::geometry::intersects(scan_line, platform);
   }
   /*collect the new positions data*/
-  void PlatformFilter::tf_update()
+  void PlatformFilter::tfUpdate()
   {
     tf::StampedTransform tf_transform_laser;
     bool tf_not_ready = true;
@@ -202,8 +201,8 @@ namespace delete_platform_namespace{
       geometry_msgs::Point32 *beginnning = &points_of_platform.front();
       geometry_msgs::Point32 *end = (&points_of_platform.back()) + 1;
       geometry_msgs::Point32 *index = beginnning;
-      calculate_yaw(&yaw, &points_of_platform);// calculate direction angle(yaw)
-	    calculate_direction(temp.transport, *pitch_angles, yaw);//calculate the amount of displacement and assign to the temp.transport
+      calculateYaw(&yaw, &points_of_platform);// calculate direction angle(yaw)
+	    calculateDirection(temp.transport, *pitch_angles, yaw);//calculate the amount of displacement and assign to the temp.transport
       temp.string_of_polygon[0] = "POLYGON((";
       temp.string_of_polygon[1] = "POLYGON((";
       temp.string_of_zone = "POLYGON((";
@@ -253,13 +252,13 @@ namespace delete_platform_namespace{
     platforms_ready_ = true;
   }
   /*calculate the displacement direction for the beginning line according to pitch and yaw ,and assign to variable*/
-  void PlatformFilter::calculate_direction(double *direction, double pitch, double yaw)
+  void PlatformFilter::calculateDirection(double *direction, double pitch, double yaw)
   {
     direction[1] = std::sin(PI*yaw/180) * laser_z_ * (1.0/std::tan(PI*pitch/180));//y direction
     direction[0] = std::cos(PI*yaw/180) * laser_z_ * (1.0/std::tan(PI*pitch/180));
   }
   /*calculate middle of the polygon and set the yaw as a vector that is through beginning line's middle to that point*/
-  void PlatformFilter::calculate_yaw(double *yaw, std::vector<geometry_msgs::Point32> *vec)
+  void PlatformFilter::calculateYaw(double *yaw, std::vector<geometry_msgs::Point32> *vec)
   {
   	double middle_x, middle_y;
     for(geometry_msgs::Point32 point : *vec)
