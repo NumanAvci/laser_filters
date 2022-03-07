@@ -2,7 +2,7 @@
 #include <sensor_msgs/LaserScan.h>
 #include <geometry_msgs/Point32.h>
 #include <geometry_msgs/Polygon.h>
-#include <laser_filters/Polygon_array.h>
+#include <laser_filters/polygon_array.h>
 #include <tf/transform_listener.h>
 #include <cmath>
 #include <queue>
@@ -15,7 +15,7 @@
 #include "filters/filter_base.h"
 #include <sensor_msgs/LaserScan.h>
 
-namespace delete_platform_namespace{
+namespace laser_filters{
 	const double PI = std::acos(-1);//pi value
 
 	struct line_segment{//mx + b [x1:x2, y1:y2]
@@ -41,7 +41,7 @@ class PlatformFilter : public filters::FilterBase<sensor_msgs::LaserScan>
 		virtual bool configure();
   
 	private:
-		void PlatformZoneCallBack(const laser_filters::Polygon_array::ConstPtr& msg);
+		void PlatformZoneCallBack(const laser_filters::polygon_array::ConstPtr& msg);
 		bool isIntersection(float angle, double range);
 		line_segment calculateLine(double, double, double , double);
 		bool exactlyPlatform(line_segment* scan, std::string polygon);

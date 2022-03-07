@@ -1,9 +1,9 @@
-#include <laser_filters/PlatformFilter.h>
+#include <laser_filters/platform_filter.h>
 #include <pluginlib/class_list_macros.h>
 
 //PLUGINLIB_REGISTER_CLASS(simple_layers_PlatformFilter, delete_platform_namespace::PlatformFilter, filters::FilterBase<sensor_msgs::LaserScan>)
 
-namespace delete_platform_namespace{
+namespace laser_filters{
 
   bool PlatformFilter::configure(){
     ros::NodeHandle nh;
@@ -47,7 +47,7 @@ namespace delete_platform_namespace{
   }
 
   /*memorize the platforms position*/
-  void PlatformFilter::PlatformZoneCallBack(const laser_filters::Polygon_array::ConstPtr& msg)
+  void PlatformFilter::PlatformZoneCallBack(const laser_filters::polygon_array::ConstPtr& msg)
   {
   	/*if it is a new call or first call*/
     if(platforms_id_.compare(msg->id.c_str()) != 0 || platforms_id_.compare("") == 0 ){

@@ -26,7 +26,7 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
-#include "laser_filters/PlatformFilter.h"
+#include "laser_filters/platform_filter.h"
 #include "laser_filters/median_filter.h"
 #include "laser_filters/array_filter.h"
 #include "laser_filters/intensity_filter.h"
@@ -63,4 +63,4 @@ PLUGINLIB_EXPORT_CLASS(laser_filters::LaserScanSpeckleFilter, filters::FilterBas
 PLUGINLIB_EXPORT_CLASS(laser_filters::LaserScanMaskFilter, filters::FilterBase<sensor_msgs::LaserScan>)
 PLUGINLIB_EXPORT_CLASS(laser_filters::ScanBlobFilter, filters::FilterBase<sensor_msgs::LaserScan>)
 PLUGINLIB_EXPORT_CLASS(laser_filters::LaserScanSectorFilter, filters::FilterBase<sensor_msgs::LaserScan>)
-PLUGINLIB_EXPORT_CLASS(delete_platform_namespace::PlatformFilter, filters::FilterBase<sensor_msgs::LaserScan>)
+PLUGINLIB_EXPORT_CLASS(laser_filters::PlatformFilter, filters::FilterBase<sensor_msgs::LaserScan>)

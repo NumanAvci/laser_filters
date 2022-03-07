@@ -36,7 +36,7 @@ generate_dynamic_reconfigure_options(
 
 add_message_files(
    FILES
-   Polygon_array.msg
+   polygon_array.msg
 )
 
 generate_messages(
@@ -68,7 +68,7 @@ add_library(laser_scan_filters
   src/speckle_filter.cpp
   src/intensity_filter.cpp
   src/sector_filter.cpp
-  src/PlatformFilter.cpp
+  src/platform_filter.cpp
 )
 
 target_link_libraries(laser_scan_filters ${catkin_LIBRARIES} ${Boost_LIBRARIES})
