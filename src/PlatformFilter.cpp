@@ -66,7 +66,7 @@ namespace delete_platform_namespace{
   /*control the intersection of reading scanning data to the one of the platforms*/
   bool PlatformFilter::isIntersection(float angle, double range)
   {
-    double angle_of_alfa = angle + (PI*laser_yaw_/180);
+    double angle_of_alfa = angle + (laser_yaw_);
     double scanning_point_y = laser_y_ + range * std::sin(angle_of_alfa);//according to map
     double scanning_point_x = laser_x_ + range * std::cos(angle_of_alfa);
     /*now we know that reading point, laser point, platforms' points*/
