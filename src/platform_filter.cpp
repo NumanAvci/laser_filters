@@ -89,7 +89,7 @@ namespace laser_filters{
           s_polygon = (*it_polygons).string_of_polygon[1];//control the polygon that is on the ground      
         //ROS_INFO("isOnGround:%i", isOnGround((*it_polygons).string_of_zone));
         if(exactlyPlatform(&scanning_line, s_polygon)){
-          ROS_INFO("DELETING point of:(%f,%f)", scanning_point_x, scanning_point_y);
+          ROS_INFO("laser_x:%f\tlaser_y:%f\tlaser_yaw:%f\nDELETING point of:(%f,%f)",laser_x_, laser_y_, laser_yaw_, scanning_point_x, scanning_point_y);
           return true;
         }
       }
