@@ -239,6 +239,7 @@ namespace laser_filters{
         }
         index--;
       }
+      /*for creating closed polygon*/
       temp.string_of_polygon[0] += std::to_string((*beginnning).x + temp.transport[0] + (std::cos(PI*yaw/180) * tolerance)) + " "
                              + std::to_string((*beginnning).y + temp.transport[1] + (std::sin(PI*yaw/180) * tolerance)) + "))";
       temp.string_of_polygon[1] += std::to_string((*beginnning).x - temp.transport[0] + (std::cos(PI*yaw/180) * tolerance)) + " "
