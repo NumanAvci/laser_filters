@@ -16,7 +16,7 @@
 #include <sensor_msgs/LaserScan.h>
 
 namespace laser_filters{
-	const double PI = std::acos(-1);//pi value
+	constexpr double PI = std::acos(-1);//pi value
 
 	struct line_segment{//mx + b [x1:x2, y1:y2]
 		double m;//slope

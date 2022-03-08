@@ -28,18 +28,18 @@ namespace laser_filters{
     if(platforms_ready_ )//is published the platforms by the user
     {
       float angle = data_in.angle_min;
-      for(float *it = &data_out.ranges.front();it != (&data_out.ranges.back())+1; it++)//iteration all scan data
+      for (unsigned int i=0; i < data_out.ranges.size(); i++)//iteration all scan data
       {
-        if(*it >= data_out.range_min && *it <= data_out.range_max && isIntersection(angle, *it))//questions is really coming from platfrom
+        if(data_out.ranges[i] >= data_out.range_min && data_out.ranges[i] <= 2*PI && isIntersection(angle, data_out.ranges[i]))//questions is really coming from platfrom
         {
-        	*it = std::numeric_limits<float>::quiet_NaN();
+        	data_out.ranges[i] = std::numeric_limits<float>::quiet_NaN();
           
         }
         angle+=data_in.angle_increment;//find another way
         /*angle = end - it - 1; -> give the angle
         angle > data_out.range_max - data_out.range_min*/
-        if(angle > data_out.range_max)
-          angle = data_out.range_max;
+        if(angle > 2*PI)
+          angle = 2*PI;
       }
     }
 
@@ -66,33 +66,34 @@ namespace laser_filters{
   /*control the intersection of reading scanning data to the any of the platforms*/
   bool PlatformFilter::isIntersection(float angle, double range)
   {
-    double angle_of_alfa = angle + (laser_yaw_);
-    double scanning_point_y = laser_y_ + range * std::sin(angle_of_alfa);//according to map
-    double scanning_point_x = laser_x_ + range * std::cos(angle_of_alfa);
+    double angle_of_alfa = angle + ((laser_yaw_ < 0) ? (laser_yaw_+2*PI) : laser_yaw_);
+    double scanning_point_y = laser_y_ + (range * std::sin(angle_of_alfa));//according to map
+    double scanning_point_x = laser_x_ + (range * std::cos(angle_of_alfa));
     /*now we know that reading point, laser point, platforms' points*/
+    //ROS_INFO("laser_x:%f,laser_y:%f\tlaser_yaw:%f\nscan point angle:%f\t(%f,%f)",laser_x_, laser_y_, laser_yaw_
+    //	                                                    , angle, scanning_point_x, scanning_point_y);
     
     line_segment scanning_line = calculateLine(laser_x_, laser_y_, scanning_point_x, scanning_point_y);
-    geometry_msgs::Polygon *ptr_platform, *ptr_platform_end;
-    ptr_platform_end = &platform_array_.back()+1;//end of vector
-    std::vector<polygons>::iterator it_polygons = polygons_data_.begin();
-    for (ptr_platform = &platform_array_.front(); ptr_platform != ptr_platform_end;
-     ++ptr_platform, it_polygons++)//iteration all platforms
+    std::vector<polygons>::iterator it_polygons = polygons_data_.begin();//and platform_array_ is same size 
+    for (geometry_msgs::Polygon platform : platform_array_)//iteration all platforms
     {
-      std::vector<geometry_msgs::Point32> points_of_platform = ptr_platform->points;
+      std::vector<geometry_msgs::Point32> points_of_platform = platform.points;
 
       std::string s_polygon;
 
-      if(CloseEnough(&scanning_line, &points_of_platform)){//if it is far we do not control
+      if(CloseEnough(&scanning_line, &points_of_platform))//if it is far we do not control
+      {
         if(isOnGround((*it_polygons).string_of_zone) )
        	  s_polygon = (*it_polygons).string_of_polygon[0];//control the polygon that is on the zone
      	  else
-          s_polygon = (*it_polygons).string_of_polygon[1];//control the polygon that is on the ground      
-        //ROS_INFO("isOnGround:%i", isOnGround((*it_polygons).string_of_zone));
+          s_polygon = (*it_polygons).string_of_polygon[1];//control the polygon that is on the ground
+
         if(exactlyPlatform(&scanning_line, s_polygon)){
-          ROS_INFO("laser_x:%f\tlaser_y:%f\tlaser_yaw:%f\nDELETING point of:(%f,%f)",laser_x_, laser_y_, laser_yaw_, scanning_point_x, scanning_point_y);
+          //ROS_INFO("DELETING...(%f,%f)", scanning_point_x, scanning_point_y);
           return true;
         }
       }
+    it_polygons++;
     }
 
     return false;
@@ -178,7 +179,7 @@ namespace laser_filters{
     laser_x_ = tf_transform_laser.getOrigin().x();//coordinate of laser according to map
     laser_y_ = tf_transform_laser.getOrigin().y();
     laser_z_ = tf_transform_laser.getOrigin().z();
-    laser_yaw_ = tf_transform_laser.getRotation().getAngle();
+    laser_yaw_ = tf::getYaw(tf_transform_laser.getRotation());
 
   }
 
