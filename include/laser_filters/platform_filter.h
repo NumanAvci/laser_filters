@@ -3,7 +3,9 @@
 #include <geometry_msgs/Point32.h>
 #include <geometry_msgs/Polygon.h>
 #include <laser_filters/polygon_array.h>
+#include <visualization_msgs/Marker.h>
 #include <tf/transform_listener.h>
+#include <tf2/LinearMath/Quaternion.h>
 #include <cmath>
 #include <queue>
 #include <vector>
@@ -45,14 +47,17 @@ class PlatformFilter : public filters::FilterBase<sensor_msgs::LaserScan>
 		bool isIntersection(float angle, double range);
 		line_segment calculateLine(double, double, double , double);
 		bool exactlyPlatform(line_segment* scan, std::string polygon);
-    bool CloseEnough(line_segment* scan, std::vector<geometry_msgs::Point32> *);
+    bool CloseEnough(std::vector<geometry_msgs::Point32> *);
     bool isOnGround(std::string);
 		void tfUpdate();
 		void CarryPolygons();
     void calculateDirection(double*, double, double);
     void calculateYaw(double*, std::vector<geometry_msgs::Point32>*);
+    void visualizePlatforms();
+    double calculateDistance(double , double , double , double );
 
 		ros::Subscriber platfrom_sub_;
+    ros::Publisher marker_pub_;
 		tf::TransformListener tf_listener_;//for finding laser's position 
 
 		

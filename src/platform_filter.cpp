@@ -8,6 +8,7 @@ namespace laser_filters{
   bool PlatformFilter::configure(){
     ros::NodeHandle nh;
     platfrom_sub_ = nh.subscribe("/platform_zone", 1000, &PlatformFilter::PlatformZoneCallBack, this);
+    marker_pub_ = nh.advertise<visualization_msgs::Marker>("/vis", 1000);
     platforms_ready_ = false;
     is_on_ground_ = true;
     platforms_id_ = "";
@@ -27,12 +28,13 @@ namespace laser_filters{
     data_out = data_in;
     if(platforms_ready_ )//is published the platforms by the user
     {
+      visualizePlatforms();
       float angle = data_in.angle_min;
       for (unsigned int i=0; i < data_out.ranges.size(); i++)//iteration all scan data
       {
         if(data_out.ranges[i] >= data_out.range_min && data_out.ranges[i] <= 2*PI && isIntersection(angle, data_out.ranges[i]))//questions is really coming from platfrom
         {
-        	data_out.ranges[i] = std::numeric_limits<float>::quiet_NaN();
+          data_out.ranges[i] = std::numeric_limits<float>::quiet_NaN();
           
         }
         angle+=data_in.angle_increment;//find another way
@@ -49,17 +51,17 @@ namespace laser_filters{
   /*memorize the platforms position*/
   void PlatformFilter::PlatformZoneCallBack(const laser_filters::polygon_array::ConstPtr& msg)
   {
-  	/*if it is a new call or first call*/
+    /*if it is a new call or first call*/
     if(platforms_id_.compare(msg->id.c_str()) != 0 || platforms_id_.compare("") == 0 ){
-    	platform_array_ = msg->points_to_points;
+      platform_array_ = msg->points_to_points;
       pitches_ = msg->angles;
-  	  platforms_id_ = msg->id;
+      platforms_id_ = msg->id;
       CarryPolygons();//creating polygon strings that describe places where scan data can come from
       //CarryPolygon function will change the value of platforms_ready_ because of controlling data accurancy
     }
     if(msg->id.compare("") == 0)//if id is not given, all platforms are not executed
     {
-    	platforms_ready_ = false;
+      platforms_ready_ = false;
     }
   }
 
@@ -71,7 +73,7 @@ namespace laser_filters{
     double scanning_point_x = laser_x_ + (range * std::cos(angle_of_alfa));
     /*now we know that reading point, laser point, platforms' points*/
     //ROS_INFO("laser_x:%f,laser_y:%f\tlaser_yaw:%f\nscan point angle:%f\t(%f,%f)",laser_x_, laser_y_, laser_yaw_
-    //	                                                    , angle, scanning_point_x, scanning_point_y);
+    //                                                      , angle, scanning_point_x, scanning_point_y);
     
     line_segment scanning_line = calculateLine(laser_x_, laser_y_, scanning_point_x, scanning_point_y);
     std::vector<polygons>::iterator it_polygons = polygons_data_.begin();//and platform_array_ is same size 
@@ -81,7 +83,7 @@ namespace laser_filters{
 
       std::string s_polygon;
 
-      if(CloseEnough(&scanning_line, &points_of_platform))//if it is far we do not control
+      if(CloseEnough(&points_of_platform))//if it is far we do not control
       {
         if(isOnGround((*it_polygons).string_of_zone) )
        	  s_polygon = (*it_polygons).string_of_polygon[0];//control the polygon that is on the zone
@@ -108,15 +110,11 @@ namespace laser_filters{
     return boost::geometry::disjoint(platform, point_2d);//if it is outside of the platform, it is on the ground
   }
   /*check is it close enough to control that platform*/
-  bool PlatformFilter::CloseEnough(line_segment *scan, std::vector<geometry_msgs::Point32> *points_of_platform)//can be develop
+  bool PlatformFilter::CloseEnough(std::vector<geometry_msgs::Point32> *points_of_platform)//can be develop
   {
-  	double change_x, change_y, mid_beg_plat_x, mid_beg_plat_y;
-  	mid_beg_plat_x = points_of_platform->front().x  + (&points_of_platform->front() + 1)->x;
-  	mid_beg_plat_x = points_of_platform->front().y  + (&points_of_platform->front() + 1)->y;
-  	change_x = mid_beg_plat_x - scan->range_x1;
-  	change_y = mid_beg_plat_y - scan->range_y1;
-  	double distance = std::sqrt((change_y*change_y) + (change_x*change_x)); 
-  	return distance <= 10; 
+    double distance = calculateDistance(points_of_platform->front().x, points_of_platform->front().y,
+                                        (&points_of_platform->front() + 1)->x, (&points_of_platform->front() + 1)->y); 
+    return distance <= 10; 
   }
   /*create a struct of line segment data according to input*/
   line_segment PlatformFilter::calculateLine(double beginning_x, double beginning_y, double end_x, double end_y)
@@ -126,12 +124,12 @@ namespace laser_filters{
       line.m = (end_y - beginning_y) / (end_x - beginning_x);
     else
     {
-    	if(end_y - beginning_y > 0)
-    		line.m = 90;
-    	else if(end_y - beginning_y < 0)
-    		line.m = 180;
-    	else
-    		line.m = 0;
+      if(end_y - beginning_y > 0)
+        line.m = 90;
+      else if(end_y - beginning_y < 0)
+        line.m = 180;
+      else
+        line.m = 0;
     }
     line.b = end_y - line.m * end_x;
     line.range_x1 = beginning_x;
@@ -203,14 +201,14 @@ namespace laser_filters{
       geometry_msgs::Point32 *end = (&points_of_platform.back()) + 1;
       geometry_msgs::Point32 *index = beginnning;
       calculateYaw(&yaw, &points_of_platform);// calculate direction angle(yaw)
-	    calculateDirection(temp.transport, *pitch_angles, yaw);//calculate the amount of displacement and assign to the temp.transport
+      calculateDirection(temp.transport, *pitch_angles, yaw);//calculate the amount of displacement and assign to the temp.transport
       temp.string_of_polygon[0] = "POLYGON((";
       temp.string_of_polygon[1] = "POLYGON((";
       temp.string_of_zone = "POLYGON((";
       while(index != end)/*first iterate beginnning to the end*/
       {
-      	if(index-beginnning < 2)//first two point is our displacment line
-      	{
+        if(index-beginnning < 2)//first two point is our displacment line
+        {
           temp.string_of_polygon[0] += std::to_string((*index).x + temp.transport[0] + (std::cos(PI*yaw/180) * tolerance)) + " "
                              + std::to_string((*index).y + temp.transport[1] + (std::sin(PI*yaw/180) * tolerance));
           temp.string_of_polygon[1] += std::to_string((*index).x - temp.transport[0] + (std::cos(PI*yaw/180) * tolerance)) + " "
@@ -249,7 +247,7 @@ namespace laser_filters{
       pitch_angles++;
 
     ROS_INFO("Polygons carried. polygon on the zone:%s \npolygon on the ground:%s\npolygon zones itself:%s\ndirection_x:%f\tdirection_y:%f",
-    	temp.string_of_polygon[0].c_str(), temp.string_of_polygon[1].c_str(), temp.string_of_zone.c_str(), temp.transport[0], temp.transport[1]);
+      temp.string_of_polygon[0].c_str(), temp.string_of_polygon[1].c_str(), temp.string_of_zone.c_str(), temp.transport[0], temp.transport[1]);
     }
     platforms_ready_ = true;
   }
@@ -262,7 +260,7 @@ namespace laser_filters{
   /*calculate middle of the polygon and set the yaw as a vector that is through beginning line's middle to that point*/
   void PlatformFilter::calculateYaw(double *yaw, std::vector<geometry_msgs::Point32> *vec)
   {
-  	double middle_x, middle_y;
+    double middle_x, middle_y;
     for(geometry_msgs::Point32 point : *vec)
     {
       middle_x += point.x;
@@ -274,13 +272,84 @@ namespace laser_filters{
     double mid_beg_plat_y = ( vec->begin()->y + (vec->begin()+1)->y ) / 2;
     //ROS_INFO("org_plat_x:%forg_plat_y:%f beg_plat_x:%f\tbeg_plat_y:%f",middle_x, middle_y, mid_beg_plat_x, mid_beg_plat_y);
     if(middle_x - mid_beg_plat_x == 0)
-    	if(middle_y - mid_beg_plat_y < 0)
-        *yaw = 180;
-    	else if(middle_y - mid_beg_plat_y > 0)
-    	  *yaw = 90;
-      else
-    		*yaw = 0;
+    {
+      if(middle_y - mid_beg_plat_y < 0)
+        *yaw = 270;
+      else if(middle_y - mid_beg_plat_y > 0)
+        *yaw = 90;
+    }
     else
-      *yaw = std::atan((middle_y - mid_beg_plat_y) / (middle_x - mid_beg_plat_x))*180/PI;
+      if(middle_y - mid_beg_plat_y == 0 && middle_x - mid_beg_plat_x < 0)
+        *yaw = 180;
+      else
+        *yaw = std::atan((middle_y - mid_beg_plat_y) / (middle_x - mid_beg_plat_x))*180/PI;
+  }
+
+  void PlatformFilter::visualizePlatforms()//at the same Hz as update
+  {
+    int index = 0;
+    std::vector<polygons>::iterator it_polygons = polygons_data_.begin();
+    for (geometry_msgs::Polygon platform : platform_array_)//iteration all platforms
+    {
+      visualization_msgs::Marker marking_plat, marking_line;
+      marking_plat.header.frame_id = "/map";
+      marking_plat.header.stamp = ros::Time();
+      marking_plat.ns = "platform";
+      marking_plat.id = index++;
+      marking_plat.type = visualization_msgs::Marker::CUBE;
+      marking_plat.action = visualization_msgs::Marker::ADD;
+      marking_plat.pose.position.x = (platform.points[0].x + platform.points[1].x + platform.points[2].x + platform.points[3].x) / 4;
+      marking_plat.pose.position.y = (platform.points[0].y + platform.points[1].y + platform.points[2].y + platform.points[3].y) / 4;
+      marking_plat.pose.position.z = 0;
+      tf2::Quaternion q;
+      double yaw;
+      calculateYaw(&yaw, &platform.points);
+      yaw = yaw*PI/180;
+      q.setRPY(0, 0, yaw-(PI/2));
+      q = q.normalize();
+      marking_plat.pose.orientation.x = q.getX();
+      marking_plat.pose.orientation.y = q.getY();
+      marking_plat.pose.orientation.z = q.getZ();
+      marking_plat.pose.orientation.w = q.getW();
+      marking_plat.scale.x = calculateDistance(platform.points[0].x, platform.points[0].y, platform.points[1].x, platform.points[1].y);//weight of platform
+      marking_plat.scale.y = calculateDistance(platform.points[0].x, platform.points[0].y, platform.points[3].x, platform.points[3].y);//length of platform
+      marking_plat.scale.z = 0.001;
+      marking_plat.color.a = 0.5; // Don't forget to set the alpha!
+      marking_plat.color.r = 100.0*index;
+      marking_plat.color.g = 1.0*index/2;
+      marking_plat.color.b = 0.0;
+      marker_pub_.publish(marking_plat);
+
+      /*create line of expected points*/
+      marking_line.header.frame_id = "/map";
+      marking_line.header.stamp = ros::Time();
+      marking_line.ns = "line";
+      marking_line.id = index++;
+      marking_line.type = visualization_msgs::Marker::LINE_STRIP;
+      marking_line.action = visualization_msgs::Marker::ADD;
+      geometry_msgs::Point point_1, point_2;
+      point_1.x = platform.points[0].x + it_polygons->transport[0];
+      point_1.y = platform.points[0].y + it_polygons->transport[1];
+      point_2.x = platform.points[1].x + it_polygons->transport[0];
+      point_2.y = platform.points[1].y + it_polygons->transport[1];
+      marking_line.points.push_back(point_1);
+      marking_line.points.push_back(point_2);
+      marking_line.pose.orientation.w = 1.0;
+      marking_line.scale.x = 0.2;
+      marking_line.scale.y = 0.2;
+      marking_line.scale.z = 0;
+      marking_line.color.a = 0.7;
+      marking_line.color.r = 0.0;
+      marking_line.color.b = 1.0;
+      marker_pub_.publish(marking_line);
+      it_polygons++;
+    }
+  }
+
+  double PlatformFilter::calculateDistance(double beg_x, double beg_y, double end_x, double end_y)
+  {
+    double change_x = beg_x - end_x;
+    double change_y = beg_y - end_y;
+    return std::sqrt((change_y*change_y) + (change_x*change_x)); 
   }
 }
