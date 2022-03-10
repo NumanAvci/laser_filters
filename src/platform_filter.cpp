@@ -56,6 +56,7 @@ namespace laser_filters{
       platform_array_ = msg->points_to_points;
       pitches_ = msg->angles;
       platforms_id_ = msg->id;
+      polygons_data_.clear();
       CarryPolygons();//creating polygon strings that describe places where scan data can come from
       //CarryPolygon function will change the value of platforms_ready_ because of controlling data accurancy
     }
