@@ -282,7 +282,7 @@ namespace laser_filters{
       if(middle_y - mid_beg_plat_y == 0 && middle_x - mid_beg_plat_x < 0)
         *yaw = 180;
       else
-        *yaw = std::atan((middle_y - mid_beg_plat_y) / (middle_x - mid_beg_plat_x))*180/PI;
+        *yaw = std::atan((mid_beg_plat_y - middle_y) / (mid_beg_plat_x - middle_x))*180/PI;
   }
 
   void PlatformFilter::visualizePlatforms()//at the same Hz as update
@@ -304,8 +304,8 @@ namespace laser_filters{
       tf2::Quaternion q;
       double yaw;
       calculateYaw(&yaw, &platform.points);
-      yaw = yaw*PI/180;
-      q.setRPY(0, 0, yaw-(PI/2));
+      yaw = (yaw-90)*PI/180;
+      q.setRPY(0, 0, yaw);
       q = q.normalize();
       marking_plat.pose.orientation.x = q.getX();
       marking_plat.pose.orientation.y = q.getY();
