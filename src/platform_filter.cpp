@@ -148,15 +148,10 @@ namespace laser_filters{
 
     typedef boost::geometry::model::polygon<boost::geometry::model::d2::point_xy<double> > polygon;
     polygon platform;
-    typedef boost::geometry::model::d2::point_xy<double> P; 
-    boost::geometry::model::linestring<P> scan_line;
+    boost::geometry::model::d2::point_xy<double> point_2d(scan->range_x2, scan->range_y2);
     std::string scan_string;
-
-    scan_string = "linestring(" + std::to_string(scan->range_x1) + " " + std::to_string(scan->range_y1) 
-                           + "," + std::to_string(scan->range_x2) + " " + std::to_string(scan->range_y2) + ")";
-    boost::geometry::read_wkt(scan_string, scan_line);
     boost::geometry::read_wkt(str_polygon, platform);
-    return boost::geometry::intersects(scan_line, platform);
+    return !boost::geometry::disjoint(platform, point_2d);
   }
   /*collect the new positions data*/
   void PlatformFilter::tfUpdate()
@@ -283,7 +278,7 @@ namespace laser_filters{
       if(middle_y - mid_beg_plat_y == 0 && middle_x - mid_beg_plat_x < 0)
         *yaw = 180;
       else
-        *yaw = std::atan((mid_beg_plat_y - middle_y) / (mid_beg_plat_x - middle_x))*180/PI;
+        *yaw = std::atan((middle_y - mid_beg_plat_y) / (middle_x - mid_beg_plat_x))*180/PI;
   }
 
   void PlatformFilter::visualizePlatforms()//at the same Hz as update
@@ -329,10 +324,20 @@ namespace laser_filters{
       marking_line.type = visualization_msgs::Marker::LINE_STRIP;
       marking_line.action = visualization_msgs::Marker::ADD;
       geometry_msgs::Point point_1, point_2;
-      point_1.x = platform.points[0].x + it_polygons->transport[0];
-      point_1.y = platform.points[0].y + it_polygons->transport[1];
-      point_2.x = platform.points[1].x + it_polygons->transport[0];
-      point_2.y = platform.points[1].y + it_polygons->transport[1];
+      if(isOnGround(it_polygons->string_of_zone))
+      {
+        point_1.x = platform.points[0].x + it_polygons->transport[0];
+        point_1.y = platform.points[0].y + it_polygons->transport[1];
+        point_2.x = platform.points[1].x + it_polygons->transport[0];
+        point_2.y = platform.points[1].y + it_polygons->transport[1];
+      }
+      else
+      {
+        point_1.x = platform.points[0].x - it_polygons->transport[0];
+        point_1.y = platform.points[0].y - it_polygons->transport[1];
+        point_2.x = platform.points[1].x - it_polygons->transport[0];
+        point_2.y = platform.points[1].y - it_polygons->transport[1];
+      }
       marking_line.points.push_back(point_1);
       marking_line.points.push_back(point_2);
       marking_line.pose.orientation.w = 1.0;
