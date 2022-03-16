@@ -124,7 +124,7 @@ namespace laser_filters{
 
         if(exactlyPlatform(scanning_point_x, scanning_point_y, s_polygon)){
           //ROS_INFO("DELETING...(%f,%f)", scanning_point_x, scanning_point_y);
-          return (*it_polygons).string_of_zone;
+          return it_polygons->string_of_zone;
         }
       }
     it_polygons++;
