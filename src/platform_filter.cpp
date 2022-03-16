@@ -30,19 +30,51 @@ namespace laser_filters{
     {
       visualizePlatforms();
       float angle = data_in.angle_min;
-      for (unsigned int i=0; i < data_out.ranges.size(); i++)//iteration all scan data
+      for (uint16_t i=0; i < data_out.ranges.size(); i++)//iteration all scan data
       {
-        if(data_out.ranges[i] >= data_out.range_min && data_out.ranges[i] <= 2*PI && isIntersection(angle, data_out.ranges[i]))//questions is really coming from platfrom
+        if(data_out.ranges[i] >= data_out.range_min && data_out.ranges[i] <= 2*PI)
         {
-          data_out.ranges[i] = std::numeric_limits<float>::quiet_NaN();
-          
+          const std::string& str_plat = isIntersection(angle, data_out.ranges[i]);
+          if(&str_plat != NULL)//questions is really coming from platform
+          {
+            scan_data scan;
+            scan.index = i;
+            scan.range = data_out.ranges[i];
+            scan.angle = angle;
+            platform_lines_[str_plat].push_back(scan);
+          }
         }
-        angle+=data_in.angle_increment;//find another way
+         angle+=data_in.angle_increment;//find another way
         /*angle = end - it - 1; -> give the angle
         angle > data_out.range_max - data_out.range_min*/
         if(angle > 2*PI)
           angle = 2*PI;
       }
+
+      for(polygons pol : polygons_data_)
+       {
+         if(!platform_lines_[pol.string_of_zone].empty())
+         {
+            std::vector<double> x;
+            std::vector<double> y;
+            for(scan_data scan : platform_lines_[pol.string_of_zone])
+            {
+              double angle_of_alfa = scan.angle + laser_yaw_;
+              double scanning_point_y = laser_y_ + (scan.range * std::sin(angle_of_alfa));//according to map
+              double scanning_point_x = laser_x_ + (scan.range * std::cos(angle_of_alfa));
+              x.push_back(scanning_point_x);
+              y.push_back(scanning_point_y);
+            }
+            //auto [n, m] = boost::math::statistics::simple_ordinary_least_squares(x, y);//mx + n
+            //oluşan doğrunun aralığı son ve ilk noktanın bu doğruya olan dik uzaklığı bulunarak ayarlanabilir.
+            /*for(scan_data scan : platform_lines_[pol.string_of_zone])
+            {
+              std::string zone = "POLYGON((";
+              //zone += 
+              data_out.ranges[scan.index] = std::numeric_limits<float>::quiet_NaN();
+            }*/
+         }
+       }
     }
 
     return true;
@@ -67,7 +99,7 @@ namespace laser_filters{
   }
 
   /*control the intersection of reading scanning data to the any of the platforms*/
-  bool PlatformFilter::isIntersection(float angle, double range)
+  const std::string& PlatformFilter::isIntersection(float angle, double range)
   {
     double angle_of_alfa = angle + ((laser_yaw_ < 0) ? (laser_yaw_+2*PI) : laser_yaw_);
     double scanning_point_y = laser_y_ + (range * std::sin(angle_of_alfa));//according to map
@@ -76,7 +108,7 @@ namespace laser_filters{
     //ROS_INFO("laser_x:%f,laser_y:%f\tlaser_yaw:%f\nscan point angle:%f\t(%f,%f)",laser_x_, laser_y_, laser_yaw_
     //                                                      , angle, scanning_point_x, scanning_point_y);
     
-    std::vector<polygons>::iterator it_polygons = polygons_data_.begin();//and platform_array_ is same size 
+    std::vector<polygons>::iterator it_polygons = polygons_data_.begin();//has to be platform_array_ is same size 
     for (geometry_msgs::Polygon platform : platform_array_)//iteration all platforms
     {
       std::vector<geometry_msgs::Point32> points_of_platform = platform.points;
@@ -85,20 +117,20 @@ namespace laser_filters{
 
       if(CloseEnough(&points_of_platform))//if it is far we do not control
       {
-        if(isOnGround((*it_polygons).string_of_zone) )
-       	  s_polygon = (*it_polygons).string_of_polygon[0];//control the polygon that is on the zone
+        if(isOnGround(it_polygons->string_of_zone) )
+       	  s_polygon = it_polygons->string_of_polygon[0];//control the polygon that is on the zone
      	  else
-          s_polygon = (*it_polygons).string_of_polygon[1];//control the polygon that is on the ground
+          s_polygon = it_polygons->string_of_polygon[1];//control the polygon that is on the ground
 
         if(exactlyPlatform(scanning_point_x, scanning_point_y, s_polygon)){
           //ROS_INFO("DELETING...(%f,%f)", scanning_point_x, scanning_point_y);
-          return true;
+          return (*it_polygons).string_of_zone;
         }
       }
     it_polygons++;
     }
-
-    return false;
+    std::string *null_string = NULL;
+    return *null_string;
   }
   /*robots position(actually lidar positions) is on the platform or on the ground*/
   bool PlatformFilter::isOnGround(std::string str_polygon)//investigate

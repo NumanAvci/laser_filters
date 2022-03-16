@@ -19,15 +19,12 @@
 
 namespace laser_filters{
 	constexpr double PI = std::acos(-1);//pi value
-
-	struct line_segment{//mx + b [x1:x2, y1:y2]
-		double m;//slope
-		double b;//constant
-		double range_x1;//min x value
-		double range_x2;//max x value
-		double range_y1;//min y value
-		double range_y2;//max y value
-	};
+  
+  struct scan_data{
+    uint16_t index;
+    double range;
+    float angle;
+  };
 
   struct polygons{
     std::string string_of_polygon[2];//[1] on the ground, [0] on the platform
@@ -44,7 +41,7 @@ class PlatformFilter : public filters::FilterBase<sensor_msgs::LaserScan>
   
 	private:
 		void PlatformZoneCallBack(const laser_filters::polygon_array::ConstPtr& msg);
-		bool isIntersection(float angle, double range);
+		const std::string&  isIntersection(float angle, double range);
 		bool exactlyPlatform(double, double, std::string polygon);
     bool CloseEnough(std::vector<geometry_msgs::Point32> *);
     bool isOnGround(std::string);
@@ -67,7 +64,7 @@ class PlatformFilter : public filters::FilterBase<sensor_msgs::LaserScan>
 		
 		bool platforms_ready_;//when platform data came, it is true
     bool is_on_ground_;// if robot not on the upside of platform or on the platform, it is true
-		std::queue<float*> platform_angle_range_;//probably do not need anymore
+		std::map<std::string, std::vector<scan_data>> platform_lines_;//holding that platforms'
     std::string platforms_id_;//message name coming from outside
 };
 
