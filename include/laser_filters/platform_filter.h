@@ -45,8 +45,7 @@ class PlatformFilter : public filters::FilterBase<sensor_msgs::LaserScan>
 	private:
 		void PlatformZoneCallBack(const laser_filters::polygon_array::ConstPtr& msg);
 		bool isIntersection(float angle, double range);
-		line_segment calculateLine(double, double, double , double);
-		bool exactlyPlatform(line_segment* scan, std::string polygon);
+		bool exactlyPlatform(double, double, std::string polygon);
     bool CloseEnough(std::vector<geometry_msgs::Point32> *);
     bool isOnGround(std::string);
 		void tfUpdate();

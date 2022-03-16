@@ -76,7 +76,6 @@ namespace laser_filters{
     //ROS_INFO("laser_x:%f,laser_y:%f\tlaser_yaw:%f\nscan point angle:%f\t(%f,%f)",laser_x_, laser_y_, laser_yaw_
     //                                                      , angle, scanning_point_x, scanning_point_y);
     
-    line_segment scanning_line = calculateLine(laser_x_, laser_y_, scanning_point_x, scanning_point_y);
     std::vector<polygons>::iterator it_polygons = polygons_data_.begin();//and platform_array_ is same size 
     for (geometry_msgs::Polygon platform : platform_array_)//iteration all platforms
     {
@@ -91,7 +90,7 @@ namespace laser_filters{
      	  else
           s_polygon = (*it_polygons).string_of_polygon[1];//control the polygon that is on the ground
 
-        if(exactlyPlatform(&scanning_line, s_polygon)){
+        if(exactlyPlatform(scanning_point_x, scanning_point_y, s_polygon)){
           //ROS_INFO("DELETING...(%f,%f)", scanning_point_x, scanning_point_y);
           return true;
         }
@@ -117,38 +116,16 @@ namespace laser_filters{
                                         (&points_of_platform->front() + 1)->x, (&points_of_platform->front() + 1)->y); 
     return distance <= 10; 
   }
-  /*create a struct of line segment data according to input*/
-  line_segment PlatformFilter::calculateLine(double beginning_x, double beginning_y, double end_x, double end_y)
-  {
-    line_segment line;
-    if(end_x - beginning_x != 0)
-      line.m = (end_y - beginning_y) / (end_x - beginning_x);
-    else
-    {
-      if(end_y - beginning_y > 0)
-        line.m = 90;
-      else if(end_y - beginning_y < 0)
-        line.m = 180;
-      else
-        line.m = 0;
-    }
-    line.b = end_y - line.m * end_x;
-    line.range_x1 = beginning_x;
-    line.range_x2 = end_x;
-    line.range_y1 = beginning_y;
-    line.range_y2 = end_y;
-    return line;
-  }
 
   /*control that is scan data coming from expected points that named str_polygon*/
-  bool PlatformFilter::exactlyPlatform(line_segment *scan, std::string str_polygon)
+  bool PlatformFilter::exactlyPlatform(double scan_x, double scan_y, std::string str_polygon)
   {
     int constant = laser_z_;//depends on robots' height
     float tolerance = 0.1;
 
     typedef boost::geometry::model::polygon<boost::geometry::model::d2::point_xy<double> > polygon;
     polygon platform;
-    boost::geometry::model::d2::point_xy<double> point_2d(scan->range_x2, scan->range_y2);
+    boost::geometry::model::d2::point_xy<double> point_2d(scan_x, scan_y);
     std::string scan_string;
     boost::geometry::read_wkt(str_polygon, platform);
     return !boost::geometry::disjoint(platform, point_2d);
