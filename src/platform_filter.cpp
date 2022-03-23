@@ -10,10 +10,17 @@ namespace laser_filters{
     platforms_ready_ = false;
     is_on_ground_ = true;
     platforms_id_ = "";
-    tolerance_ = 0.2;
     tfUpdate();
     ros::spinOnce();
-    ROS_INFO("Configuration completed.");
+    //bool conf = false;
+    //while(!conf)
+    bool conf = getParam("tolerance", tolerance_) && getParam("max_distance", max_distance_) && getParam("number_skipped_angle", skipped_angle_);
+    if(conf)
+    {
+      ROS_INFO("Configuration completed.");
+      return true;
+    }
+    return false;
   }
 
   PlatformFilter::PlatformFilter(){//I may need to carry that transformation to the configure method (so I did:) but it was also wrong)
@@ -44,7 +51,7 @@ namespace laser_filters{
             platform_lines_[polygons_data_[index_of_polygons].string_of_zone].push_back(scan);
           }
         }
-        angle+=data_in.angle_increment;
+        angle+=data_out.angle_increment;
         if(angle > data_out.angle_max)
           angle = data_out.angle_max;
       }
@@ -57,7 +64,8 @@ namespace laser_filters{
             pcl::PointCloud<pcl::PointXYZ>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZ>);
             cloud->height = 1;//values are unorganized
             cloud->is_dense = true;//values are valid (not included nan values)
-            double sum_of_distance = 0, last_x = 0, last_y = 0, last_angle = data_out.angle_min;
+            double sum_of_distance = 0, last_x = 0, last_y = 0;
+            float last_angle = data_out.angle_min;
             bool is_first_it = true;//is first iteration
             int count = 0;
             //ROS_INFO("polygons_data_size:%i\nplatform_line size:%i\n", polygons_data_.size(), platform_lines_[pol.string_of_zone].size());
@@ -70,10 +78,11 @@ namespace laser_filters{
               pcl::PointXYZ point(scanning_point_x, scanning_point_y, 0);//creating a new point
               if(!is_first_it)
               {
-                if( (scan.angle - last_angle) < (data_out.angle_increment*2) )
+                if( (scan.angle - last_angle) < (data_out.angle_increment*(skipped_angle_+1)) )//can have a tolerance
                 {
                   sum_of_distance += calculateDistance(last_x, last_y, scanning_point_x, scanning_point_y);
-                  count++;
+                  count+= (int)std::round( std::abs( (scan.angle - last_angle) / data_out.angle_increment) );
+                  ROS_INFO("scanning angle:%f\n%f", scan.angle, std::abs( (scan.angle - last_angle) / data_out.angle_increment) );
                 }
               }
               last_x = scanning_point_x;
@@ -85,7 +94,7 @@ namespace laser_filters{
             if(count == 0)
               continue;
             sum_of_distance /= count;
-            //ROS_INFO("cloud size:%i\ndistance:%f", cloud->size(), sum_of_distance);
+            ROS_INFO("cloud size:%i\ndistance:%f\ncount:%i\nangle_increment:%f", cloud->size(), sum_of_distance, count, data_out.angle_increment);
             std::vector<int> inliers, indices;// will hold exception index of line
             Eigen::VectorXf vec;
             pcl::SampleConsensusModelLine<pcl::PointXYZ>::Ptr model_p (new pcl::SampleConsensusModelLine<pcl::PointXYZ> (cloud->makeShared()));
@@ -197,7 +206,7 @@ namespace laser_filters{
   {
     double distance = calculateDistance(points_of_platform->front().x, points_of_platform->front().y,
                                         (&points_of_platform->front() + 1)->x, (&points_of_platform->front() + 1)->y); 
-    return distance <= 10;
+    return distance <= max_distance_;
   }
 
   /*control that is scan data coming from expected points that named str_polygon*/

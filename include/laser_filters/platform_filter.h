@@ -67,7 +67,9 @@ class PlatformFilter : public filters::FilterBase<sensor_msgs::LaserScan>
 
 		
 		double laser_x_, laser_y_, laser_z_, laser_yaw_;//coordinate of laser according to map
-    float tolerance_;
+    double tolerance_;
+    double max_distance_;
+    int skipped_angle_;
     std::vector<double> pitches_;//store the pitch angles of platforms
 		std::vector<geometry_msgs::Polygon> platform_array_;//store the values coming from message
     std::vector<polygons> polygons_data_;//store the calculated and creating values of platforms
