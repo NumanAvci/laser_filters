@@ -105,11 +105,13 @@ namespace laser_filters{
             ransac.getModelCoefficients(vec);// it is 6d vector (last 3 element is direction vector on 3d)
 
             //std::cout << vec.x() << "\n"<< vec.y() << "\n"<<  vec.z() << "\n"<<vec.w() << "\n"<< "\n" << vec << "\n" << vec.rows() << "\n" << vec.cols();
-
+            
+            /*not needed now. it is needed for looking final values
             pcl::PointCloud<pcl::PointXYZ>::Ptr final(new pcl::PointCloud<pcl::PointXYZ>);
-            pcl::copyPointCloud(*cloud, inliers, *final);//not needed now. it is needed for looking final values
+            pcl::copyPointCloud(*cloud, inliers, *final);
             //ROS_INFO("final size:%i", final->size());
-
+            */
+           
             visualizePlatforms(index_of_platform, vec);//show the last points of linestrıp on the calculated line on the rviz
             /*
             ROS_INFO("inlier size%i\t indices size:%i", inliers.size(), indices.size());
