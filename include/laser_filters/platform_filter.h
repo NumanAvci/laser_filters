@@ -14,6 +14,11 @@
 #include <boost/geometry.hpp>
 #include <boost/geometry/geometries/linestring.hpp>
 #include <boost/geometry/geometries/point_xy.hpp>
+#include <pcl/console/parse.h>
+#include <pcl/filters/extract_indices.h>
+#include <pcl/point_types.h>
+#include <pcl/sample_consensus/ransac.h>
+#include <pcl/sample_consensus/sac_model_line.h>
 #include "filters/filter_base.h"
 #include <sensor_msgs/LaserScan.h>
 
@@ -41,7 +46,7 @@ class PlatformFilter : public filters::FilterBase<sensor_msgs::LaserScan>
   
 	private:
 		void PlatformZoneCallBack(const laser_filters::polygon_array::ConstPtr& msg);
-		const std::string&  isIntersection(float angle, double range);
+		int isIntersection(float angle, double range);
 		bool exactlyPlatform(double, double, std::string polygon);
     bool CloseEnough(std::vector<geometry_msgs::Point32> *);
     bool isOnGround(std::string);
@@ -50,14 +55,19 @@ class PlatformFilter : public filters::FilterBase<sensor_msgs::LaserScan>
     void calculateDirection(double*, double, double);
     void calculateYaw(double*, std::vector<geometry_msgs::Point32>*);
     void visualizePlatforms();
+    void visualizePlatforms(int, Eigen::VectorXf&);
+    void calculateLine(double* , double , double , double , double );
+    void calculateCommonPoint(geometry_msgs::Point& , double , double , double , double );
     double calculateDistance(double , double , double , double );
 
-		ros::Subscriber platfrom_sub_;
-    ros::Publisher marker_pub_;
+		ros::Subscriber platform_sub_;
+    ros::Publisher marker_pub_;//for publishing platforms and their calculated space
+    ros::Publisher marker_line_pub_;//for publishing the fitting line  
 		tf::TransformListener tf_listener_;//for finding laser's position 
 
 		
 		double laser_x_, laser_y_, laser_z_, laser_yaw_;//coordinate of laser according to map
+    float tolerance_;
     std::vector<double> pitches_;//store the pitch angles of platforms
 		std::vector<geometry_msgs::Polygon> platform_array_;//store the values coming from message
     std::vector<polygons> polygons_data_;//store the calculated and creating values of platforms

@@ -18,7 +18,9 @@ find_package(catkin REQUIRED COMPONENTS ${THIS_PACKAGE_ROS_DEPS}
   geometry_msgs
   sensor_msgs)
 find_package(Boost REQUIRED COMPONENTS system)
-include_directories(include ${catkin_INCLUDE_DIRS} ${Boost_INCLUDE_DIRS})
+find_package(PCL 1.2 REQUIRED)
+
+include_directories(include ${catkin_INCLUDE_DIRS} ${Boost_INCLUDE_DIRS} ${PCL_INCLUDE_DIRS})
 
 ##############################################################################
 # Define package
@@ -56,6 +58,9 @@ catkin_package(
 # Build
 ##############################################################################
 
+link_directories(${PCL_LIBRARY_DIRS})
+add_definitions(${PCL_DEFINITIONS})
+
 add_library(pointcloud_filters src/pointcloud_filters.cpp)
 target_link_libraries(pointcloud_filters ${catkin_LIBRARIES})
 
@@ -71,7 +76,7 @@ add_library(laser_scan_filters
   src/platform_filter.cpp
 )
 
-target_link_libraries(laser_scan_filters ${catkin_LIBRARIES} ${Boost_LIBRARIES})
+target_link_libraries(laser_scan_filters ${catkin_LIBRARIES} ${Boost_LIBRARIES} ${PCL_LIBRARIES})
 
 add_executable(scan_to_cloud_filter_chain src/scan_to_cloud_filter_chain.cpp)
 target_link_libraries(scan_to_cloud_filter_chain ${catkin_LIBRARIES} ${Boost_LIBRARIES})
@@ -81,7 +86,7 @@ target_link_libraries(scan_to_cloud_filter_chain_nodelet ${catkin_LIBRARIES} ${B
 target_compile_definitions(scan_to_cloud_filter_chain_nodelet PRIVATE BUILDING_NODELET=1)
 
 add_executable(scan_to_scan_filter_chain src/scan_to_scan_filter_chain.cpp)
-target_link_libraries(scan_to_scan_filter_chain ${catkin_LIBRARIES} ${Boost_LIBRARIES})
+target_link_libraries(scan_to_scan_filter_chain ${catkin_LIBRARIES} ${Boost_LIBRARIES} ${PCL_LIBRARIES})
 
 add_executable(generic_laser_filter_node src/generic_laser_filter_node.cpp)
 target_link_libraries(generic_laser_filter_node ${catkin_LIBRARIES} ${Boost_LIBRARIES})
