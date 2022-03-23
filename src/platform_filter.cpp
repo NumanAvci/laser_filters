@@ -12,8 +12,7 @@ namespace laser_filters{
     platforms_id_ = "";
     tfUpdate();
     ros::spinOnce();
-    //bool conf = false;
-    //while(!conf)
+    
     bool conf = getParam("tolerance", tolerance_) && getParam("max_distance", max_distance_) && getParam("number_skipped_angle", skipped_angle_);
     if(conf)
     {
@@ -78,11 +77,11 @@ namespace laser_filters{
               pcl::PointXYZ point(scanning_point_x, scanning_point_y, 0);//creating a new point
               if(!is_first_it)
               {
-                if( (scan.angle - last_angle) < (data_out.angle_increment*(skipped_angle_+1)) )//can have a tolerance
+                if( (scan.angle - last_angle) < (data_out.angle_increment * (skipped_angle_+1)) )//can have a tolerance
                 {
                   sum_of_distance += calculateDistance(last_x, last_y, scanning_point_x, scanning_point_y);
                   count+= (int)std::round( std::abs( (scan.angle - last_angle) / data_out.angle_increment) );
-                  ROS_INFO("scanning angle:%f\n%f", scan.angle, std::abs( (scan.angle - last_angle) / data_out.angle_increment) );
+                  //xROS_INFO("scanning angle:%f\n%f", scan.angle, std::abs( (scan.angle - last_angle) / data_out.angle_increment) );
                 }
               }
               last_x = scanning_point_x;
@@ -94,21 +93,21 @@ namespace laser_filters{
             if(count == 0)
               continue;
             sum_of_distance /= count;
-            ROS_INFO("cloud size:%i\ndistance:%f\ncount:%i\nangle_increment:%f", cloud->size(), sum_of_distance, count, data_out.angle_increment);
+            //ROS_INFO("cloud size:%i\ndistance:%f\ncount:%i\nangle_increment:%f", cloud->size(), sum_of_distance, count, data_out.angle_increment);
             std::vector<int> inliers, indices;// will hold exception index of line
             Eigen::VectorXf vec;
             pcl::SampleConsensusModelLine<pcl::PointXYZ>::Ptr model_p (new pcl::SampleConsensusModelLine<pcl::PointXYZ> (cloud->makeShared()));
             pcl::RandomSampleConsensus<pcl::PointXYZ> ransac (model_p, sum_of_distance);//threshold is sum_of_distance
             
             ransac.computeModel();//compute the regression of line
-            ransac.getInliers(inliers);//get exception points' indexes
-            ransac.getModel(indices);
-            ransac.getModelCoefficients(vec);
+            ransac.getInliers(inliers);//get line points' indexes
+            ransac.getModel(indices);//not using now
+            ransac.getModelCoefficients(vec);// it is 6d vector (last 3 element is direction vector on 3d)
 
             //std::cout << vec.x() << "\n"<< vec.y() << "\n"<<  vec.z() << "\n"<<vec.w() << "\n"<< "\n" << vec << "\n" << vec.rows() << "\n" << vec.cols();
 
             pcl::PointCloud<pcl::PointXYZ>::Ptr final(new pcl::PointCloud<pcl::PointXYZ>);
-            pcl::copyPointCloud(*cloud, inliers, *final);
+            pcl::copyPointCloud(*cloud, inliers, *final);//not needed now. it is needed for looking final values
             //ROS_INFO("final size:%i", final->size());
 
             visualizePlatforms(index_of_platform, vec);//show the last points of linestrıp on the calculated line on the rviz
@@ -142,7 +141,8 @@ namespace laser_filters{
   void PlatformFilter::PlatformZoneCallBack(const laser_filters::polygon_array::ConstPtr& msg)
   {
     /*if it is a new call or first call*/
-    if(platforms_id_.compare(msg->id.c_str()) != 0 || platforms_id_.compare("") == 0 ){
+    if(platforms_id_.compare(msg->id.c_str()) != 0 || platforms_id_.compare("") == 0 )
+    {
       platform_array_ = msg->points_to_points;
       pitches_ = msg->angles;
       platforms_id_ = msg->id;
@@ -227,12 +227,13 @@ namespace laser_filters{
   {
     tf::StampedTransform tf_transform_laser;
     bool tf_not_ready = true;
-    while(tf_not_ready && ros::ok()){
+    while(tf_not_ready && ros::ok())
+    {
       try{
         tf_listener_.lookupTransform("/map", "/base_scan", ros::Time(0), tf_transform_laser);//laser's position according to map
         tf_not_ready = false;
       }
-      catch (tf::TransformException &ex) {
+      catch (tf::TransformException &ex){
         ROS_ERROR("%s",ex.what()); 
         ros::Duration(0.5).sleep();
         tf_not_ready = true;
@@ -448,7 +449,7 @@ namespace laser_filters{
     marker_line_pub_.publish(marking_line);
   }
   
-  /*calculate the line according to given points and return slope value [0] and constant value [1]*/
+  /*calculate the line according to given points and return slope value [0](m) and constant value [1](n)*/
   void PlatformFilter::calculateLine(double* line, double beg_x, double beg_y, double end_x, double end_y)
   {
     if(end_x - beg_x == 0)
