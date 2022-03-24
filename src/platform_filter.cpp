@@ -428,9 +428,8 @@ namespace laser_filters{
   {
     visualization_msgs::Marker marking_line;
     double fitting_line[2];
-    fitting_line[0] = (vec[4]/vec[3]);//std::tan(tf::getYaw())
+    fitting_line[0] = (vec[4]/vec[3]);//delta y / delta x
     fitting_line[1] = vec[1] - fitting_line[0] * vec[0];
-    //ROS_INFO("yaw:%f ", tf::getYaw(qua1)*180/PI);
     //ROS_INFO("fit m: %f, fit n: %f", fitting_line[0], fitting_line[1]);
     std::vector<geometry_msgs::Point32> points_of_platform = platform_array_[index_of_platform].points;
     double line_1[2];//mx + n(m, n)
