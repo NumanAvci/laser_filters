@@ -111,10 +111,9 @@ namespace laser_filters{
             /*//not needed now. it is needed for looking final values
             pcl::PointCloud<pcl::PointXYZ>::Ptr final(new pcl::PointCloud<pcl::PointXYZ>);
             pcl::copyPointCloud(*cloud, inliers, *final);
-            //ROS_INFO("final size:%i", final->size());
+            ROS_INFO("final size:%i", final->size());
             */
            
-            visualizePlatforms(index_of_platform, vec);//show the last points of linestrıp on the calculated line on the rviz
             /*
             ROS_INFO("inlier size%i\t indices size:%i", inliers.size(), indices.size());
             ROS_INFO("indices1:%i, indices2:%i\n\n", indices[0], indices[1]);
@@ -131,6 +130,8 @@ namespace laser_filters{
 
               j++;//scanning index
             }
+          visualizePlatforms(index_of_platform, vec);//show the last points of linestrıp on the calculated line on the rviz
+
          }
          index_of_platform++;
       }
@@ -430,13 +431,13 @@ namespace laser_filters{
     double fitting_line[2];
     fitting_line[0] = (vec[4]/vec[3]);//delta y / delta x
     fitting_line[1] = vec[1] - fitting_line[0] * vec[0];
-    //ROS_INFO("fit m: %f, fit n: %f", fitting_line[0], fitting_line[1]);
+    ROS_INFO("platform:%i\nfit m: %f, fit n: %f", index_of_platform, fitting_line[0], fitting_line[1]);
     std::vector<geometry_msgs::Point32> points_of_platform = platform_array_[index_of_platform].points;
     double line_1[2];//mx + n(m, n)
     calculateLine(line_1, points_of_platform[0].x, points_of_platform[0].y, points_of_platform[3].x, points_of_platform[3].y);
     double line_2[2];//mx + n(m, n)
     calculateLine(line_2, points_of_platform[1].x, points_of_platform[1].y, points_of_platform[2].x, points_of_platform[2].y);
-    //ROS_INFO("n_1:%f n_2%f", line_1[1], line_2[1]);
+    //ROS_INFO("m_1:%f n_1%f  m_2:%f n_2%f", line_1[0] , line_1[1], line_2[0], line_2[1]);
     marking_line.header.frame_id = "/map";
     marking_line.header.stamp = ros::Time();
     marking_line.ns = "line";
@@ -446,8 +447,10 @@ namespace laser_filters{
 
     geometry_msgs::Point point_msg;
     calculateCommonPoint(point_msg, fitting_line[0], fitting_line[1], line_1[0], line_1[1]);
+    //ROS_INFO("x: %f, y: %f", point_msg.x, point_msg.y);
     marking_line.points.push_back(point_msg);
     calculateCommonPoint(point_msg, fitting_line[0], fitting_line[1], line_2[0], line_2[1]);
+    //ROS_INFO("x: %f, y: %f", point_msg.x, point_msg.y);
     marking_line.points.push_back(point_msg);
     
     marking_line.pose.orientation.w = 1.0;
@@ -458,8 +461,9 @@ namespace laser_filters{
     marking_line.color.r = 1;
     marking_line.color.g = 1;
     marking_line.color.b = 0.0;
-
     marker_line_pub_.publish(marking_line);
+    ros::Duration(0.04).sleep();
+    ros::spinOnce();
   }
   
   /*calculate the line according to given points and return slope value [0](m) and constant value [1](n)*/
@@ -467,15 +471,9 @@ namespace laser_filters{
   {
     if(end_x - beg_x == 0)
     {
-      if(end_y - beg_y < 0)
-        line[0] = std::tan(270*PI/180);
-      else if(end_y - beg_y > 0)
-        line[0] = std::tan(90*PI/180);
+        line[0] = 1000000000000.0;
     }
     else
-      if(end_y - beg_y == 0 && end_x - beg_x < 0)
-        line[0] = std::tan(180*PI/180);
-      else
         line[0] = (end_y - beg_y) / (end_x - beg_x);
     line[1] = end_y - line[0] * end_x;
   }
