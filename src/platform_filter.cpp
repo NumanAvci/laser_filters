@@ -441,7 +441,7 @@ namespace laser_filters{
     marking_line.header.frame_id = "/map";
     marking_line.header.stamp = ros::Time();
     marking_line.ns = "line";
-    marking_line.id = 55;
+    marking_line.id = 55 + index_of_platform;
     marking_line.type = visualization_msgs::Marker::LINE_STRIP;
     marking_line.action = visualization_msgs::Marker::ADD;
 
@@ -462,8 +462,6 @@ namespace laser_filters{
     marking_line.color.g = 1;
     marking_line.color.b = 0.0;
     marker_line_pub_.publish(marking_line);
-    ros::Duration(0.04).sleep();
-    ros::spinOnce();
   }
   
   /*calculate the line according to given points and return slope value [0](m) and constant value [1](n)*/
