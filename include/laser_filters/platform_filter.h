@@ -34,7 +34,7 @@ namespace laser_filters{
   struct polygons{
     std::string string_of_polygon[2];//[1] on the ground, [0] on the platform
     std::string string_of_zone;//platform's own polygon
-    double transport[2];//delta x and delta y for carrying polygon
+    double transport[2];//delta x[0] and delta y[1] for carrying polygon
   };
 
 class PlatformFilter : public filters::FilterBase<sensor_msgs::LaserScan>
@@ -46,12 +46,12 @@ class PlatformFilter : public filters::FilterBase<sensor_msgs::LaserScan>
   
 	private:
 		void PlatformZoneCallBack(const laser_filters::polygon_array::ConstPtr& msg);
-		int isIntersection(float angle, double range);
+		int isOnPlatform(float angle, double range);
 		bool exactlyPlatform(double, double, std::string polygon);
     bool CloseEnough(std::vector<geometry_msgs::Point32> *);
     bool isOnGround(std::string);
 		void tfUpdate();
-		void CarryPolygons();
+		bool CarryPolygons();
     void calculateDirection(double*, double, double);
     void calculateYaw(double*, std::vector<geometry_msgs::Point32>*);
     void visualizePlatforms();

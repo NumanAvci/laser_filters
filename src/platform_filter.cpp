@@ -5,8 +5,8 @@ namespace laser_filters{
   bool PlatformFilter::configure(){
     ros::NodeHandle nh;
     platform_sub_ = nh.subscribe("/platform_zone", 1000, &PlatformFilter::PlatformZoneCallBack, this);
-    marker_pub_ = nh.advertise<visualization_msgs::Marker>("/vis", 1000);
-    marker_line_pub_ = nh.advertise<visualization_msgs::Marker>("/vis_line_fitting", 1000);
+    marker_pub_ = nh.advertise<visualization_msgs::Marker>("/vis_platforms", 1000);
+    marker_line_pub_ = nh.advertise<visualization_msgs::Marker>("/vis_fitting_line", 1000);
     platforms_ready_ = false;
     is_on_ground_ = true;
     platforms_id_ = "";
@@ -17,8 +17,10 @@ namespace laser_filters{
     if(conf)
     {
       ROS_INFO("Configuration completed.");
+      ROS_INFO("Platforms are waiting");
       return true;
     }
+    ROS_WARN("Configuration could not completed. Platform parameters are not reachable");
     return false;
   }
 
@@ -40,7 +42,7 @@ namespace laser_filters{
       {
         if(data_out.ranges[i] >= data_out.range_min && data_out.ranges[i] <= data_out.range_max)
         {
-          int index_of_polygons = isIntersection(angle, data_out.ranges[i]);
+          int index_of_polygons = isOnPlatform(angle, data_out.ranges[i]);
           if(index_of_polygons != -1)//questions is really coming from platform
           {
             scan_data scan;
@@ -97,7 +99,7 @@ namespace laser_filters{
             std::vector<int> inliers, indices;// will hold exception index of line
             Eigen::VectorXf vec;
             pcl::SampleConsensusModelLine<pcl::PointXYZ>::Ptr model_p (new pcl::SampleConsensusModelLine<pcl::PointXYZ> (cloud->makeShared()));
-            pcl::RandomSampleConsensus<pcl::PointXYZ> ransac (model_p, sum_of_distance);//threshold is sum_of_distance
+            pcl::RandomSampleConsensus<pcl::PointXYZ> ransac (model_p, sum_of_distance*2);//threshold is sum_of_distance
             
             ransac.computeModel();//compute the regression of line
             ransac.getInliers(inliers);//get line points' indexes
@@ -106,7 +108,7 @@ namespace laser_filters{
 
             //std::cout << vec.x() << "\n"<< vec.y() << "\n"<<  vec.z() << "\n"<<vec.w() << "\n"<< "\n" << vec << "\n" << vec.rows() << "\n" << vec.cols();
             
-            /*not needed now. it is needed for looking final values
+            /*//not needed now. it is needed for looking final values
             pcl::PointCloud<pcl::PointXYZ>::Ptr final(new pcl::PointCloud<pcl::PointXYZ>);
             pcl::copyPointCloud(*cloud, inliers, *final);
             //ROS_INFO("final size:%i", final->size());
@@ -135,7 +137,6 @@ namespace laser_filters{
        
 
     }
-
     return true;
   }
 
@@ -149,17 +150,18 @@ namespace laser_filters{
       pitches_ = msg->angles;
       platforms_id_ = msg->id;
       polygons_data_.clear();
-      CarryPolygons();//creating polygon strings that describe places where scan data can come from
-      //CarryPolygon function will change the value of platforms_ready_ because of controlling data accuracy
+      platforms_ready_ = CarryPolygons();//creating polygon strings that describe places where scan data is expected to come
+      //CarryPolygon function will return bool because of controlling data accuracy
     }
-    if(msg->id.compare("") == 0)//if id is not given, all platforms are not executed
+    if(msg->id.compare("") == 0)//if id is not given, all platforms will not be executed
     {
+      ROS_INFO("platforms ID did not given");
       platforms_ready_ = false;
     }
   }
 
   /*control the intersection of reading scanning data to the any of the platforms*/
-  int PlatformFilter::isIntersection(float angle, double range)
+  int PlatformFilter::isOnPlatform(float angle, double range)
   {
     double angle_of_alfa = angle + laser_yaw_;
     double scanning_point_y = laser_y_ + (range * std::sin(angle_of_alfa));//according to map
@@ -167,7 +169,7 @@ namespace laser_filters{
     /*now we know that reading point, laser point, platforms' points*/
     //ROS_INFO("laser_x:%f,laser_y:%f\tlaser_yaw:%f\nscan point angle:%f\t(%f,%f)",laser_x_, laser_y_, laser_yaw_
     //                                                      , angle, scanning_point_x, scanning_point_y);
-    
+
     std::vector<polygons>::iterator it_polygons = polygons_data_.begin();//has to be platform_array_ is same size 
     for (geometry_msgs::Polygon platform : platform_array_)//iteration all platforms
     {
@@ -206,16 +208,15 @@ namespace laser_filters{
   /*check is it close enough to control that platform*/
   bool PlatformFilter::CloseEnough(std::vector<geometry_msgs::Point32> *points_of_platform)//can be develop
   {
-    double distance = calculateDistance(points_of_platform->front().x, points_of_platform->front().y,
-                                        (&points_of_platform->front() + 1)->x, (&points_of_platform->front() + 1)->y); 
+    double mid_beg_plat_x = (points_of_platform->front().x + (points_of_platform->begin() + 1)->x) / 2;
+    double mid_beg_plat_y = (points_of_platform->front().y + (points_of_platform->begin() + 1)->y) / 2;
+    double distance = calculateDistance(laser_x_, laser_y_, mid_beg_plat_x, mid_beg_plat_y); 
     return distance <= max_distance_;
   }
 
   /*control that is scan data coming from expected points that named str_polygon*/
   bool PlatformFilter::exactlyPlatform(double scan_x, double scan_y, std::string str_polygon)
   {
-    int constant = laser_z_;//depends on robots' height
-
     typedef boost::geometry::model::polygon<boost::geometry::model::d2::point_xy<double> > polygon;
     polygon platform;
     boost::geometry::model::d2::point_xy<double> point_2d(scan_x, scan_y);
@@ -250,80 +251,91 @@ namespace laser_filters{
   }
 
   /*platforms' lines taken carry to the zone and ground(named polygon)*/
-  void PlatformFilter::CarryPolygons()
+  bool PlatformFilter::CarryPolygons()
   {
-    std::vector<double>::iterator pitch_angles = pitches_.begin();
-    
-    for (geometry_msgs::Polygon i : platform_array_ )//iteration all the platforms
+    if(pitches_.size() != platform_array_.size())
     {
-      polygons temp;
+      ROS_WARN("ANGLE VALUES AND PLATFORM VALUES NOT MATCHING");
+      return false;
+    }
+
+    std::vector<double>::iterator pitch_angles_it = pitches_.begin();
+    
+    for (geometry_msgs::Polygon msg_pol : platform_array_ )//iteration all the platforms
+    {
+      polygons temp_pol;
       double yaw;
-      std::vector<geometry_msgs::Point32> points_of_platform = i.points;
+      std::vector<geometry_msgs::Point32> points_of_platform = msg_pol.points;
       if(points_of_platform.size() != 4)
       {
-        platforms_ready_ = false;
-        return;
+        ROS_WARN("PLATFORMS MUST HAVE 4 POINTS");
+        return false;
+      }
+      if( *pitch_angles_it > 90.0)
+      {
+        ROS_WARN("ANGLE VALUES CAN NOT HIGHER THAN 90 degree");
+        return false;
       }
       calculateYaw(&yaw, &points_of_platform);// calculate direction angle(yaw)
-      calculateDirection(temp.transport, *pitch_angles, yaw);//calculate the amount of displacement and assign to the temp.transport
-      temp.string_of_polygon[0] = "POLYGON((";//on the zone
-      temp.string_of_polygon[1] = "POLYGON((";//on the ground
-      temp.string_of_zone = "POLYGON((";//platforms' itself
+      calculateDirection(temp_pol.transport, *pitch_angles_it, yaw);//calculate the amount of displacement and assign to the temp.transport
+      temp_pol.string_of_polygon[0] = "POLYGON((";//on the zone
+      temp_pol.string_of_polygon[1] = "POLYGON((";//on the ground
+      temp_pol.string_of_zone = "POLYGON((";//platforms' itself
       
-      temp.string_of_polygon[0] += std::to_string(points_of_platform[0].x + temp.transport[0] + (std::cos(PI*yaw/180) * tolerance_)) + " "
-                             + std::to_string(points_of_platform[0].y + temp.transport[1] + (std::sin(PI*yaw/180) * tolerance_)) + ","
-                             + std::to_string(points_of_platform[1].x + temp.transport[0] + (std::cos(PI*yaw/180) * tolerance_)) + " "
-                             + std::to_string(points_of_platform[1].y + temp.transport[1] + (std::sin(PI*yaw/180) * tolerance_)) + ","
-                             + std::to_string(points_of_platform[1].x + temp.transport[0] - (std::cos(PI*yaw/180) * tolerance_)) + " "
-                             + std::to_string(points_of_platform[1].y + temp.transport[1] - (std::sin(PI*yaw/180) * tolerance_)) + ","
-                             + std::to_string(points_of_platform[0].x + temp.transport[0] - (std::cos(PI*yaw/180) * tolerance_)) + " "
-                             + std::to_string(points_of_platform[0].y + temp.transport[1] - (std::sin(PI*yaw/180) * tolerance_)) + ","
-                             + std::to_string(points_of_platform[0].x + temp.transport[0] + (std::cos(PI*yaw/180) * tolerance_)) + " "
-                             + std::to_string(points_of_platform[0].y + temp.transport[1] + (std::sin(PI*yaw/180) * tolerance_)) + "))";
-      temp.string_of_polygon[1] += std::to_string(points_of_platform[0].x - temp.transport[0] + (std::cos(PI*yaw/180) * tolerance_)) + " "
-                             + std::to_string(points_of_platform[0].y - temp.transport[1] + (std::sin(PI*yaw/180) * tolerance_)) + ","
-                             + std::to_string(points_of_platform[1].x - temp.transport[0] + (std::cos(PI*yaw/180) * tolerance_)) + " "
-                             + std::to_string(points_of_platform[1].y - temp.transport[1] + (std::sin(PI*yaw/180) * tolerance_)) + ","
-                             + std::to_string(points_of_platform[1].x - temp.transport[0] - (std::cos(PI*yaw/180) * tolerance_)) + " "
-                             + std::to_string(points_of_platform[1].y - temp.transport[1] - (std::sin(PI*yaw/180) * tolerance_)) + ","
-                             + std::to_string(points_of_platform[0].x - temp.transport[0] - (std::cos(PI*yaw/180) * tolerance_)) + " "
-                             + std::to_string(points_of_platform[0].y - temp.transport[1] - (std::sin(PI*yaw/180) * tolerance_)) + ","
-                             + std::to_string(points_of_platform[0].x - temp.transport[0] + (std::cos(PI*yaw/180) * tolerance_)) + " "
-                             + std::to_string(points_of_platform[0].y - temp.transport[1] + (std::sin(PI*yaw/180) * tolerance_)) + "))";
-      temp.string_of_zone += std::to_string(points_of_platform[0].x) + " " + std::to_string(points_of_platform[0].y) + ","
+      temp_pol.string_of_polygon[0] += std::to_string(points_of_platform[0].x + temp_pol.transport[0] + (std::cos(PI*yaw/180) * tolerance_)) + " "
+                             + std::to_string(points_of_platform[0].y + temp_pol.transport[1] + (std::sin(PI*yaw/180) * tolerance_)) + ","
+                             + std::to_string(points_of_platform[1].x + temp_pol.transport[0] + (std::cos(PI*yaw/180) * tolerance_)) + " "
+                             + std::to_string(points_of_platform[1].y + temp_pol.transport[1] + (std::sin(PI*yaw/180) * tolerance_)) + ","
+                             + std::to_string(points_of_platform[1].x + temp_pol.transport[0] - (std::cos(PI*yaw/180) * tolerance_)) + " "
+                             + std::to_string(points_of_platform[1].y + temp_pol.transport[1] - (std::sin(PI*yaw/180) * tolerance_)) + ","
+                             + std::to_string(points_of_platform[0].x + temp_pol.transport[0] - (std::cos(PI*yaw/180) * tolerance_)) + " "
+                             + std::to_string(points_of_platform[0].y + temp_pol.transport[1] - (std::sin(PI*yaw/180) * tolerance_)) + ","
+                             + std::to_string(points_of_platform[0].x + temp_pol.transport[0] + (std::cos(PI*yaw/180) * tolerance_)) + " "
+                             + std::to_string(points_of_platform[0].y + temp_pol.transport[1] + (std::sin(PI*yaw/180) * tolerance_)) + "))";
+      temp_pol.string_of_polygon[1] += std::to_string(points_of_platform[0].x - temp_pol.transport[0] + (std::cos(PI*yaw/180) * tolerance_)) + " "
+                             + std::to_string(points_of_platform[0].y - temp_pol.transport[1] + (std::sin(PI*yaw/180) * tolerance_)) + ","
+                             + std::to_string(points_of_platform[1].x - temp_pol.transport[0] + (std::cos(PI*yaw/180) * tolerance_)) + " "
+                             + std::to_string(points_of_platform[1].y - temp_pol.transport[1] + (std::sin(PI*yaw/180) * tolerance_)) + ","
+                             + std::to_string(points_of_platform[1].x - temp_pol.transport[0] - (std::cos(PI*yaw/180) * tolerance_)) + " "
+                             + std::to_string(points_of_platform[1].y - temp_pol.transport[1] - (std::sin(PI*yaw/180) * tolerance_)) + ","
+                             + std::to_string(points_of_platform[0].x - temp_pol.transport[0] - (std::cos(PI*yaw/180) * tolerance_)) + " "
+                             + std::to_string(points_of_platform[0].y - temp_pol.transport[1] - (std::sin(PI*yaw/180) * tolerance_)) + ","
+                             + std::to_string(points_of_platform[0].x - temp_pol.transport[0] + (std::cos(PI*yaw/180) * tolerance_)) + " "
+                             + std::to_string(points_of_platform[0].y - temp_pol.transport[1] + (std::sin(PI*yaw/180) * tolerance_)) + "))";
+      temp_pol.string_of_zone += std::to_string(points_of_platform[0].x) + " " + std::to_string(points_of_platform[0].y) + ","
                              + std::to_string(points_of_platform[1].x) + " " + std::to_string(points_of_platform[1].y) + ","
                              + std::to_string(points_of_platform[2].x) + " " + std::to_string(points_of_platform[2].y) + ","
                              + std::to_string(points_of_platform[3].x) + " " + std::to_string(points_of_platform[3].y) + ","
                              + std::to_string(points_of_platform[0].x) + " " + std::to_string(points_of_platform[0].y) + "))";
-        
-      polygons_data_.push_back(temp);
-      pitch_angles++;
 
-    ROS_INFO("Polygons carried. polygon on the zone:%s \npolygon on the ground:%s\npolygon zones itself:%s\ndirection_x:%f\tdirection_y:%f",
-      temp.string_of_polygon[0].c_str(), temp.string_of_polygon[1].c_str(), temp.string_of_zone.c_str(), temp.transport[0], temp.transport[1]);
+      polygons_data_.push_back(temp_pol);
+      pitch_angles_it++;
+
+      ROS_INFO("%ith polygon was carried. polygon on the zone:%s \npolygon on the ground:%s\npolygon zones itself:%s\ndirection_x:%f\tdirection_y:%f", (int)(pitch_angles_it - pitches_.begin())
+      , temp_pol.string_of_polygon[0].c_str(), temp_pol.string_of_polygon[1].c_str(), temp_pol.string_of_zone.c_str(), temp_pol.transport[0], temp_pol.transport[1]);
     }
-    platforms_ready_ = true;
+    return true;
   }
 
   /*calculate the displacement direction for the beginning line according to pitch and yaw ,and assign to variable*/
-  void PlatformFilter::calculateDirection(double *direction, double pitch, double yaw)
+  void PlatformFilter::calculateDirection(double *direction, double pitch, double yaw)//pitch and yaw must be degree
   {
     direction[1] = std::sin(PI*yaw/180) * laser_z_ * (1.0/std::tan(PI*pitch/180));//y direction
     direction[0] = std::cos(PI*yaw/180) * laser_z_ * (1.0/std::tan(PI*pitch/180));
   }
 
   /*calculate middle of the polygon and set the yaw as a vector that is through beginning line's middle to that point*/
-  void PlatformFilter::calculateYaw(double *yaw, std::vector<geometry_msgs::Point32> *vec)
+  void PlatformFilter::calculateYaw(double *yaw, std::vector<geometry_msgs::Point32> *vec)//return the degree of yaw
   {
     double middle_x, middle_y;
-    for(geometry_msgs::Point32 point : *vec)
+    for(geometry_msgs::Point32 point : *vec)//find middle of the platform
     {
       middle_x += point.x;
       middle_y += point.y;
     }
     middle_x /= vec->size();
     middle_y /= vec->size();
-    double mid_beg_plat_x = ( vec->begin()->x + (vec->begin()+1)->x ) / 2;
+    double mid_beg_plat_x = ( vec->begin()->x + (vec->begin()+1)->x ) / 2;//middle of the beginning of platform
     double mid_beg_plat_y = ( vec->begin()->y + (vec->begin()+1)->y ) / 2;
     //ROS_INFO("org_plat_x:%forg_plat_y:%f beg_plat_x:%f\tbeg_plat_y:%f",middle_x, middle_y, mid_beg_plat_x, mid_beg_plat_y);
     if(middle_x - mid_beg_plat_x == 0)
