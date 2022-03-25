@@ -5,3 +5,4 @@ scan_filter_chain:
     tolerance: 0.2   
     max_distance: 10.0  
     number_skipped_angle: 1
+    threshold_coefficient: 1.0

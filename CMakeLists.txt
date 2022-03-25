@@ -34,6 +34,7 @@ generate_dynamic_reconfigure_options(
   cfg/ScanShadowsFilter.cfg
   cfg/SpeckleFilter.cfg
   cfg/SectorFilter.cfg
+  cfg/PlatformFilter.cfg
 )
 
 add_message_files(

@@ -3,17 +3,22 @@
 namespace laser_filters{
 
   bool PlatformFilter::configure(){
-    ros::NodeHandle nh;
-    platform_sub_ = nh.subscribe("/platform_zone", 1000, &PlatformFilter::PlatformZoneCallBack, this);
-    marker_pub_ = nh.advertise<visualization_msgs::Marker>("/vis_platforms", 1000);
-    marker_line_pub_ = nh.advertise<visualization_msgs::Marker>("/vis_fitting_line", 1000);
+    ros::NodeHandle private_nh("~" + getName());
+    platform_sub_ = private_nh.subscribe("/platform_zone", 1000, &PlatformFilter::PlatformZoneCallBack, this);
+    marker_pub_ = private_nh.advertise<visualization_msgs::Marker>("/vis_platforms", 1000);
+    marker_line_pub_ = private_nh.advertise<visualization_msgs::Marker>("/vis_fitting_line", 1000);
     platforms_ready_ = false;
     is_on_ground_ = true;
     platforms_id_ = "";
     tfUpdate();
+    dyn_server_.reset(new dynamic_reconfigure::Server<laser_filters::PlatformFilterConfig>(own_mutex_, private_nh));
+    dynamic_reconfigure::Server<laser_filters::PlatformFilterConfig>::CallbackType f;
+    f = boost::bind(&laser_filters::PlatformFilter::reconfigureCB, this, _1, _2);
+    dyn_server_->setCallback(f);
     ros::spinOnce();
     
-    bool conf = getParam("tolerance", tolerance_) && getParam("max_distance", max_distance_) && getParam("number_skipped_angle", skipped_angle_);
+    bool conf = getParam("tolerance", tolerance_) && getParam("max_distance", max_distance_)
+     && getParam("number_skipped_angle", skipped_angle_) && getParam("threshold_coefficient", threshold_coef_);
     if(conf)
     {
       ROS_INFO("Configuration completed.");
@@ -99,8 +104,8 @@ namespace laser_filters{
             std::vector<int> inliers, indices;// will hold exception index of line
             Eigen::VectorXf vec;
             pcl::SampleConsensusModelLine<pcl::PointXYZ>::Ptr model_p (new pcl::SampleConsensusModelLine<pcl::PointXYZ> (cloud->makeShared()));
-            pcl::RandomSampleConsensus<pcl::PointXYZ> ransac (model_p, sum_of_distance*2);//threshold is sum_of_distance
-            
+            pcl::RandomSampleConsensus<pcl::PointXYZ> ransac (model_p, sum_of_distance*threshold_coef_);//threshold is sum_of_distance
+
             ransac.computeModel();//compute the regression of line
             ransac.getInliers(inliers);//get line points' indexes
             ransac.getModel(indices);//not using now
@@ -135,7 +140,6 @@ namespace laser_filters{
          }
          index_of_platform++;
       }
-       
 
     }
     return true;
@@ -159,6 +163,14 @@ namespace laser_filters{
       ROS_INFO("platforms ID did not given");
       platforms_ready_ = false;
     }
+  }
+
+  void PlatformFilter::reconfigureCB(laser_filters::PlatformFilterConfig& config, uint32_t level)
+  {
+  tolerance_ = config.tolerance;
+  max_distance_ = config.max_distance;
+  skipped_angle_ = config.number_skipped_angle;
+  threshold_coef_ = config.threshold_coefficient;
   }
 
   /*control the intersection of reading scanning data to the any of the platforms*/
@@ -312,7 +324,7 @@ namespace laser_filters{
       polygons_data_.push_back(temp_pol);
       pitch_angles_it++;
 
-      ROS_INFO("%ith polygon was carried. polygon on the zone:%s \npolygon on the ground:%s\npolygon zones itself:%s\ndirection_x:%f\tdirection_y:%f", (int)(pitch_angles_it - pitches_.begin())
+      ROS_INFO("%ith polygon was carried. polygon on the zone:%s \npolygon on the ground:%s\npolygon zones itself:%s\ndirection_x:%f\tdirection_y:%f\n", (int)(pitch_angles_it - pitches_.begin())
       , temp_pol.string_of_polygon[0].c_str(), temp_pol.string_of_polygon[1].c_str(), temp_pol.string_of_zone.c_str(), temp_pol.transport[0], temp_pol.transport[1]);
     }
     return true;
@@ -431,7 +443,7 @@ namespace laser_filters{
     double fitting_line[2];
     fitting_line[0] = (vec[4]/vec[3]);//delta y / delta x
     fitting_line[1] = vec[1] - fitting_line[0] * vec[0];
-    ROS_INFO("platform:%i\nfit m: %f, fit n: %f", index_of_platform, fitting_line[0], fitting_line[1]);
+    //ROS_INFO("platform:%i\nfit m: %f, fit n: %f", index_of_platform, fitting_line[0], fitting_line[1]);
     std::vector<geometry_msgs::Point32> points_of_platform = platform_array_[index_of_platform].points;
     double line_1[2];//mx + n(m, n)
     calculateLine(line_1, points_of_platform[0].x, points_of_platform[0].y, points_of_platform[3].x, points_of_platform[3].y);
@@ -475,7 +487,6 @@ namespace laser_filters{
         line[0] = (end_y - beg_y) / (end_x - beg_x);
     line[1] = end_y - line[0] * end_x;
   }
-  
 
   /*calculate the common solution for two lines given*/
   void PlatformFilter::calculateCommonPoint(geometry_msgs::Point& out, double m_1, double n_1, double m_2, double n_2)

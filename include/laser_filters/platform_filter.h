@@ -19,6 +19,8 @@
 #include <pcl/point_types.h>
 #include <pcl/sample_consensus/ransac.h>
 #include <pcl/sample_consensus/sac_model_line.h>
+#include <dynamic_reconfigure/server.h>
+#include <laser_filters/PlatformFilterConfig.h>
 #include "filters/filter_base.h"
 #include <sensor_msgs/LaserScan.h>
 
@@ -46,6 +48,7 @@ class PlatformFilter : public filters::FilterBase<sensor_msgs::LaserScan>
   
 	private:
 		void PlatformZoneCallBack(const laser_filters::polygon_array::ConstPtr& msg);
+    void reconfigureCB(laser_filters::PlatformFilterConfig& config, uint32_t level);
 		int isOnPlatform(float angle, double range);
 		bool exactlyPlatform(double, double, std::string polygon);
     bool CloseEnough(std::vector<geometry_msgs::Point32> *);
@@ -64,12 +67,14 @@ class PlatformFilter : public filters::FilterBase<sensor_msgs::LaserScan>
     ros::Publisher marker_pub_;//for publishing platforms and their calculated space
     ros::Publisher marker_line_pub_;//for publishing the fitting line  
 		tf::TransformListener tf_listener_;//for finding laser's position 
-
+    std::shared_ptr<dynamic_reconfigure::Server<laser_filters::PlatformFilterConfig>> dyn_server_;
+    boost::recursive_mutex own_mutex_;
 		
 		double laser_x_, laser_y_, laser_z_, laser_yaw_;//coordinate of laser according to map
     double tolerance_;
     double max_distance_;
     int skipped_angle_;
+    double threshold_coef_;
     std::vector<double> pitches_;//store the pitch angles of platforms
 		std::vector<geometry_msgs::Polygon> platform_array_;//store the values coming from message
     std::vector<polygons> polygons_data_;//store the calculated and creating values of platforms
