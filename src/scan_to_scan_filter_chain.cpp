@@ -63,7 +63,7 @@ public:
   // Constructor
   ScanToScanFilterChain() :
     private_nh_("~"),
-    scan_sub_(nh_, "scan", 50),
+    scan_sub_(nh_, "/r3001415b5/scan_front_raw", 50),
     tf_(NULL),
     tf_filter_(NULL),
     filter_chain_("sensor_msgs::LaserScan")

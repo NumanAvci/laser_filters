@@ -14,6 +14,16 @@
 #include <boost/geometry.hpp>
 #include <boost/geometry/geometries/linestring.hpp>
 #include <boost/geometry/geometries/point_xy.hpp>
+
+#include <sensor_msgs/PointCloud2.h>
+#include <pcl_conversions/pcl_conversions.h>
+#include <pcl/point_cloud.h>
+#include <pcl/point_types.h>
+#include <laser_geometry/laser_geometry.h>
+#include <sensor_msgs/point_cloud2_iterator.h>
+#include <pointcloud_to_laserscan/pointcloud_to_laserscan_nodelet.h>
+#include <tf2_ros/buffer.h>
+
 #include <pcl/console/parse.h>
 #include <pcl/filters/extract_indices.h>
 #include <pcl/point_types.h>
@@ -27,10 +37,17 @@
 namespace laser_filters{
 	constexpr double PI = std::acos(-1);//pi value
   
-  struct scan_data{
+  /*struct scan_data{
     uint16_t index;
     double range;
     float angle;
+  };*/
+  struct platform_cloud{
+    pcl::PointCloud<pcl::PointXYZ> cloud;
+    int count = 0;
+    std::vector<int> index_array;
+    double sum_of_distance = 0;
+    bool is_first_it = true;
   };
 
   struct polygons{
@@ -49,11 +66,13 @@ class PlatformFilter : public filters::FilterBase<sensor_msgs::LaserScan>
 	private:
 		void PlatformZoneCallBack(const laser_filters::polygon_array::ConstPtr& msg);
     void reconfigureCB(laser_filters::PlatformFilterConfig& config, uint32_t level);
-		int isOnPlatform(float angle, double range);
-		bool exactlyPlatform(double, double, std::string polygon);
+		//int isOnPlatform(float angle, double range);
+		int isOnPlatform(float scan_x, float scan_y);
+    bool exactlyPlatform(double, double, std::string polygon);
     bool CloseEnough(std::vector<geometry_msgs::Point32> *);
     bool isOnGround(std::string);
-		void tfUpdate();
+		void tfUpdate(ros::Time);
+    void indexBaseCountNAN(std::vector<int>&, const sensor_msgs::LaserScan&);
 		bool CarryPolygons();
     void calculateDirection(double*, double, double);
     void calculateYaw(double*, std::vector<geometry_msgs::Point32>*);
@@ -64,8 +83,8 @@ class PlatformFilter : public filters::FilterBase<sensor_msgs::LaserScan>
     double calculateDistance(double , double , double , double );
 
 		ros::Subscriber platform_sub_;
+    ros::Subscriber scan_sub_;
     ros::Publisher marker_pub_;//for publishing platforms and their calculated space
-    ros::Publisher marker_line_pub_;//for publishing the fitting line  
 		tf::TransformListener tf_listener_;//for finding laser's position 
     std::shared_ptr<dynamic_reconfigure::Server<laser_filters::PlatformFilterConfig>> dyn_server_;
     boost::recursive_mutex own_mutex_;
@@ -81,7 +100,8 @@ class PlatformFilter : public filters::FilterBase<sensor_msgs::LaserScan>
 		
 		bool platforms_ready_;//when platform data came, it is true
     bool is_on_ground_;// if robot not on the upside of platform or on the platform, it is true
-		std::map<std::string, std::vector<scan_data>> platform_lines_;//holding that platforms'
+		//std::map<std::string, std::vector<scan_data>> platform_lines_;//holding that platforms'
+    std::map<std::string, platform_cloud> platform_lines_;//holding that platforms'
     std::string platforms_id_;//message name coming from outside
 };
 

@@ -1,7 +1,11 @@
 <launch>
+  <arg name="robot_id" default="/r3001415b5" />
+
   <node pkg="laser_filters" type="scan_to_scan_filter_chain"
       output="screen" name="laser_filter">
     <rosparam command="load" file="$(find laser_filters)/examples/platform_filter.yaml" />
-    <remap from="scan" to="base_scan" />
+    <remap from="/tf" to="$(arg robot_id)/tf" />
+    <remap from="/tf_static" to="$(arg robot_id)/tf_static" />
+    <remap from="/map" to="v/mmzfhnol9ro6/map" />
   </node>
 </launch>
