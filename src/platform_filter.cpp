@@ -165,39 +165,43 @@ namespace laser_filters{
       sensor_msgs::PointCloud2ConstIterator<float> const_iter_x(cloud_msg, "x"),
                                                 const_iter_y(cloud_msg, "y");
       
-      int index = 0, last_index = 0;
+      int index_of_cloud = 0, last_index_of_cloud = 0;
       sensor_msgs::PointCloud2ConstIterator<float> const_last_iter_x(const_iter_x), const_last_iter_y(const_iter_y);
       
-      while (const_iter_x != const_iter_x.end())
+      for(int i=0;i < data_in.ranges.size();i++)
       {
-        int index_of_polygons = isOnPlatform(*const_iter_x, *const_iter_y);
-        if(index_of_polygons != -1)//questions is really coming from platform
+        if( data_in.range_min < data_in.ranges[i]  && data_in.range_max > data_in.ranges[i] )
         {
-          platform_cloud* pl_struct = &platform_lines_[polygons_data_[index_of_polygons].string_of_zone];
-          (*pl_struct).cloud.height = 1;//values are unorganized
-          (*pl_struct).cloud.is_dense = false;//values are valid (not included nan values)
-          pcl::PointXYZ point(*const_iter_x, *const_iter_y, 0);
-          (*pl_struct).cloud.push_back(point);
-          (*pl_struct).index_array.push_back(index);
-          if(!(*pl_struct).is_first_it)
+          int index_of_polygons = isOnPlatform(*const_iter_x, *const_iter_y);
+          if(index_of_polygons != -1)//questions is really coming from platform
           {
-            if( ( index - last_index ) < (skipped_angle_+1) )
+            platform_cloud* pl_struct = &platform_lines_[polygons_data_[index_of_polygons].string_of_zone];
+            (*pl_struct).cloud.height = 1;//values are unorganized
+            (*pl_struct).cloud.is_dense = false;//values are valid (not included nan values)
+            pcl::PointXYZ point(*const_iter_x, *const_iter_y, 0);
+            (*pl_struct).cloud.push_back(point);
+            (*pl_struct).index_array.push_back(index_of_cloud);
+            point_to_scan_index_map_[index_of_cloud] = i;
+            if(!(*pl_struct).is_first_it)
             {
-              (*pl_struct).sum_of_distance += calculateDistance(*const_last_iter_x, *const_last_iter_y, *const_iter_x, *const_iter_y);
-              (*pl_struct).count+= index - last_index;
+              if( ( index_of_cloud - last_index_of_cloud ) < (skipped_angle_+1) )
+              {
+                (*pl_struct).sum_of_distance += calculateDistance(*const_last_iter_x, *const_last_iter_y, *const_iter_x, *const_iter_y);
+                (*pl_struct).count+= index_of_cloud - last_index_of_cloud;
+              }
             }
-          }
 
-          (*pl_struct).is_first_it = false;
-          last_index = index;
-          const_last_iter_x = const_iter_x;
-          const_last_iter_y = const_iter_y;
-        }
-        index++;
-        ++const_iter_x;
-        ++const_iter_y;
+            (*pl_struct).is_first_it = false;
+            last_index_of_cloud = index_of_cloud;
+            const_last_iter_x = const_iter_x;
+            const_last_iter_y = const_iter_y;
+          }
+          index_of_cloud++;
+          ++const_iter_x;
+          ++const_iter_y;
+       }
       }
-      ROS_INFO("\nsize scanner:%i\nsize cloud%i\nnan size:%i",data_in.ranges.size(), index, number_of_NAN.back());
+      ROS_INFO("\nsize scanner:%i\nsize cloud%i\nnan size:%i",data_in.ranges.size(), index_of_cloud, number_of_NAN.back());
 
       int index_of_platform = 0;// for finding platforms' index
       for(polygons pol : polygons_data_)
@@ -227,23 +231,20 @@ namespace laser_filters{
             //ROS_INFO("inlier size%i indices size:%i", inliers.size(), indices.size());
             visualizePlatforms(index_of_platform, vec);//show the last points of linestrıp on the calculated line on the rviz
           
-            index = 0;
-            int i = 0, j = 0;
+            int count=0, j = 0;
             sensor_msgs::PointCloud2Iterator<float> iter_x(cloud_msg, "x"),
                                                 iter_y(cloud_msg, "y"),
                                                 iter_z(cloud_msg, "z");
             
-            for(index=0;index < data_out.ranges.size();index++)
+            for(int i : cl.index_array)
             {
-              if(index-number_of_NAN[index] == cl.index_array[i])
+              if(inliers[j] == count)
               {
-                if(inliers[j] == i)
-                {
-                  data_out.ranges[index] = std::numeric_limits<float>::quiet_NaN();
-                  j++;
-                }
-                i++;
+                int scan_index = point_to_scan_index_map_[i];
+                data_out.ranges[scan_index] = std::numeric_limits<float>::quiet_NaN();
+                j++;
               }
+              count++;
             }
          }
          index_of_platform++;

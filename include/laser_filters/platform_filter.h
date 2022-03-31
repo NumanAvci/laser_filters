@@ -102,6 +102,7 @@ class PlatformFilter : public filters::FilterBase<sensor_msgs::LaserScan>
     bool is_on_ground_;// if robot not on the upside of platform or on the platform, it is true
 		//std::map<std::string, std::vector<scan_data>> platform_lines_;//holding that platforms'
     std::map<std::string, platform_cloud> platform_lines_;//holding that platforms'
+    std::map<int, int> point_to_scan_index_map_;
     std::string platforms_id_;//message name coming from outside
 };
 
