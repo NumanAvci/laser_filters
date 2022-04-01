@@ -69,7 +69,9 @@ public:
     filter_chain_("sensor_msgs::LaserScan")
   {
     // Configure filter chain
-    
+    /*std::string laser_topic;
+    private_nh_.getParam("laser_topic", laser_topic);
+    scan_sub_(nh_, laser_topic + "", 50);*/
     using_filter_chain_deprecated_ = private_nh_.hasParam("filter_chain");
 
     if (using_filter_chain_deprecated_)

@@ -42,7 +42,7 @@ namespace laser_filters{
     double range;
     float angle;
   };*/
-  
+
   struct platform_cloud{
     pcl::PointCloud<pcl::PointXYZ> cloud;
     int count = 0;
@@ -96,6 +96,8 @@ class PlatformFilter : public filters::FilterBase<sensor_msgs::LaserScan>
     double max_distance_;
     int skipped_angle_;
     double threshold_coef_;
+    std::string laser_frame_;
+    std::string map_frame_;
     std::vector<double> pitches_;//store the pitch angles of platforms
 		std::vector<geometry_msgs::Polygon> platform_array_;//store the values coming from message
     std::vector<polygons> polygons_data_;//store the calculated and creating values of platforms

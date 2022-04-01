@@ -4,6 +4,7 @@ namespace laser_filters{
 
   bool PlatformFilter::configure(){
     ros::NodeHandle private_nh("~" + getName());
+    ros::NodeHandle nh("/laser_filter");
     platform_sub_ = private_nh.subscribe("/platform_zone", 1000, &PlatformFilter::PlatformZoneCallBack, this);
     marker_pub_ = private_nh.advertise<visualization_msgs::Marker>("/vis_platforms", 1000);
     platforms_ready_ = false;
@@ -16,9 +17,14 @@ namespace laser_filters{
     f = boost::bind(&laser_filters::PlatformFilter::reconfigureCB, this, _1, _2);
     dyn_server_->setCallback(f);
     ros::spinOnce();
-    
-    conf_ = getParam("tolerance", tolerance_) && getParam("max_distance", max_distance_)
-     && getParam("number_skipped_angle", skipped_angle_) && getParam("threshold_coefficient", threshold_coef_);
+    std::string id;
+    getParam("robot_id", id);
+    ROS_INFO("robot id:\t%s", getName().c_str());
+    conf_ = private_nh.getParam("tolerance", tolerance_) && private_nh.getParam("max_distance", max_distance_)
+     && private_nh.getParam("number_skipped_angle", skipped_angle_) && private_nh.getParam("threshold_coefficient", threshold_coef_)
+     && nh.getParam("laser_frame", laser_frame_) && nh.getParam("map_frame", map_frame_);
+    ROS_INFO("\nthreshold:\t%f\nmax_distance:\t%f\nskipped_angle:\t%d\nthreshold_coef:\t%f\nlaser_f:\t%s\nmap_f:\t%s"
+    , tolerance_, max_distance_, skipped_angle_, threshold_coef_, laser_frame_.c_str(), map_frame_.c_str());
     if(conf_)
     {
       ROS_INFO("Configuration completed.");
@@ -34,121 +40,6 @@ namespace laser_filters{
   }
 
   /*marking the ranges of intersection of scan data to the platform*/
-  /*bool PlatformFilter::update(const sensor_msgs::LaserScan& data_in, sensor_msgs::LaserScan& data_out)
-  {
-    tfUpdate(data_in.header.stamp);//taking tf data
-    data_out = data_in;
-    platform_lines_.clear();//because of not filling again and again
-    if(platforms_ready_ )//is published the platforms by the user
-    {
-      visualizePlatforms();
-      laser_geometry::LaserProjection projector;
-      sensor_msgs::PointCloud2 cloud_msg_1, cloud_msg_2;
-      projector.transformLaserScanToPointCloud("v/mmzfhnol9ro6/map", data_in, cloud_msg_1, tf_listener_);
-      projector.projectLaser(data_in, cloud_msg_2);
-      sensor_msgs::PointCloud2ConstIterator<float> iter_x(cloud_msg_1, "x");
-      float angle = data_out.angle_min;
-      for (uint16_t i=0; i < data_out.ranges.size(); i++,++iter_x)//iteration all scan data
-      {
-        if(data_out.ranges[i] >= data_out.range_min && data_out.ranges[i] <= data_out.range_max)
-        {
-          int index_of_polygons = isOnPlatform(angle, data_out.ranges[i]);
-          //ROS_INFO("%i\n%f\t%f", i, laser_x_ + (data_out.ranges[i] * std::cos(angle + laser_yaw_)), *iter_x);
-          if(index_of_polygons != -1)//questions is really coming from platform
-          {
-            scan_data scan;
-            scan.index = i;
-            scan.range = data_out.ranges[i];
-            scan.angle = angle;
-            platform_lines_[polygons_data_[index_of_polygons].string_of_zone].push_back(scan);
-          }
-        }
-        angle+=data_out.angle_increment;
-        if(angle > data_out.angle_max)
-          angle = data_out.angle_max;
-      }
-
-      int index_of_platform = 0;// for finding platforms' index
-      for(polygons pol : polygons_data_)
-      {
-         if(!platform_lines_[pol.string_of_zone].empty())
-         {
-           
-            pcl::PointCloud<pcl::PointXYZ>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZ>);
-            cloud->height = 1;//values are unorganized
-            cloud->is_dense = false;//values are valid (not included nan values)
-            double sum_of_distance = 0, last_x = 0, last_y = 0;
-            float last_angle = data_out.angle_min;
-            bool is_first_it = true;//is first iteration
-            int count = 0;
-            //ROS_INFO("polygons_data_size:%i\nplatform_line size:%i\n", polygons_data_.size(), platform_lines_[pol.string_of_zone].size());
-            for(scan_data scan : platform_lines_[pol.string_of_zone])//copy the data to pcl::cloud
-            {
-              double angle_of_alfa = scan.angle + laser_yaw_;
-              float scanning_point_y = laser_y_ + (scan.range * std::sin(angle_of_alfa));//according to map
-              float scanning_point_x = laser_x_ + (scan.range * std::cos(angle_of_alfa));
-             //ROS_INFO("scan data\tx:%f,y:%f\n", scanning_point_x, scanning_point_y);
-              pcl::PointXYZ point(scanning_point_x, scanning_point_y, 0);//creating a new point
-              if(!is_first_it)
-              {
-                if( (scan.angle - last_angle) < (data_out.angle_increment * (skipped_angle_+1)) )//can have a tolerance
-                {
-                  sum_of_distance += calculateDistance(last_x, last_y, scanning_point_x, scanning_point_y);
-                  count+= (int)std::round( std::abs( (scan.angle - last_angle) / data_out.angle_increment) );
-                  //xROS_INFO("scanning angle:%f\n%f", scan.angle, std::abs( (scan.angle - last_angle) / data_out.angle_increment) );
-                }
-              }
-              last_x = scanning_point_x;
-              last_y = scanning_point_y;
-              last_angle = scan.angle;
-              is_first_it = false;
-              cloud->push_back(point);
-            }
-            if(count == 0)
-              continue;
-            sum_of_distance /= count;
-            ROS_INFO("cloud size:%i", cloud->size());
-            std::vector<int> inliers, indices;// will hold exception index of line
-            Eigen::VectorXf vec;
-            pcl::SampleConsensusModelLine<pcl::PointXYZ>::Ptr model_p (new pcl::SampleConsensusModelLine<pcl::PointXYZ> (cloud));
-            pcl::RandomSampleConsensus<pcl::PointXYZ> ransac (model_p, sum_of_distance*threshold_coef_);//threshold is sum_of_distance
-
-            ransac.computeModel();//compute the regression of line
-            ransac.getInliers(inliers);//get line points' indexes
-            ransac.getModel(indices);//not using now
-            ransac.getModelCoefficients(vec);// it is 6d vector (last 3 element is direction vector on 3d)
-
-            //std::cout << vec.x() << "\n"<< vec.y() << "\n"<<  vec.z() << "\n"<<vec.w() << "\n"<< "\n" << vec << "\n" << vec.rows() << "\n" << vec.cols();
-            
-            //not needed now. it is needed for looking final values
-            pcl::PointCloud<pcl::PointXYZ>::Ptr final(new pcl::PointCloud<pcl::PointXYZ>);
-            pcl::copyPointCloud(*cloud, inliers, *final);
-            ROS_INFO("final size:%i", final->size());
-            
-           
-            
-            
-            //ROS_INFO("indices1:%i, indices2:%i\n\n", indices[0], indices[1]);
-            
-            int i = 0, j = 0;
-            for(scan_data scan : platform_lines_[pol.string_of_zone])
-            {
-              if(inliers.size() != i && inliers[i] == j)
-              {
-                data_out.ranges[scan.index] = std::numeric_limits<float>::quiet_NaN();
-                i++;
-              }
-              j++;//scanning index
-            }
-            
-         }
-         index_of_platform++;
-      }
-
-    }
-    return true;
-  }*/
-  
   bool PlatformFilter::update(const sensor_msgs::LaserScan& data_in, sensor_msgs::LaserScan& data_out)
   {
     tfUpdate(data_in.header.stamp);//taking tf data
@@ -158,7 +49,7 @@ namespace laser_filters{
       visualizePlatforms();
       laser_geometry::LaserProjection projector;
       sensor_msgs::PointCloud2 cloud_msg;
-      projector.transformLaserScanToPointCloud("v/mmzfhnol9ro6/map", data_in, cloud_msg, tf_listener_);
+      projector.transformLaserScanToPointCloud(map_frame_, data_in, cloud_msg, tf_listener_);
       std::vector<int> number_of_NAN;
       indexBaseCountNAN(number_of_NAN, data_in);
 
@@ -201,7 +92,7 @@ namespace laser_filters{
           ++const_iter_y;
        }
       }
-      ROS_INFO("\nsize scanner:%i\nsize cloud%i\nnan size:%i",data_in.ranges.size(), index_of_cloud, number_of_NAN.back());
+      //ROS_INFO("\nsize scanner:%i\nsize cloud%i\nnan size:%i",data_in.ranges.size(), index_of_cloud, number_of_NAN.back());
 
       int index_of_platform = 0;// for finding platforms' index
       for(polygons pol : polygons_data_)
@@ -226,8 +117,8 @@ namespace laser_filters{
 
             pcl::PointCloud<pcl::PointXYZ>::Ptr final(new pcl::PointCloud<pcl::PointXYZ>);
             pcl::copyPointCloud(cl.cloud, inliers, *final);
-            ROS_INFO("cloud size:%i", cl.cloud.size());
-            ROS_INFO("final size:%i", final->size());
+            //ROS_INFO("cloud size:%i", cl.cloud.size());
+            //ROS_INFO("final size:%i", final->size());
             //ROS_INFO("inlier size%i indices size:%i", inliers.size(), indices.size());
             visualizePlatforms(index_of_platform, vec);//show the last points of linestrıp on the calculated line on the rviz
           
@@ -366,7 +257,7 @@ namespace laser_filters{
       //ROS_INFO("%f",t.toSec());
       try{
         //ros::Duration(t.toSec()).sleep();
-        tf_listener_.lookupTransform("v/mmzfhnol9ro6/map", "r3001415b5/base_front_laser_link", t , tf_transform_laser);//laser's position according to map
+        tf_listener_.lookupTransform("v/mmzfhnol9ro6/map", "r3001415b5/base_front_laser_link", t , tf_transform_laser);//laser's position according to map        tf_not_ready = false;
         tf_not_ready = false;
       }
       catch (tf::TransformException &ex){
@@ -387,7 +278,7 @@ namespace laser_filters{
   bool PlatformFilter::CarryPolygons()
   {
     polygons_data_.clear();
-    
+
     if(pitches_.size() != platform_array_.size())
     {
       ROS_WARN("ANGLE VALUES AND PLATFORM VALUES NOT MATCHING");
@@ -473,7 +364,7 @@ namespace laser_filters{
     middle_y /= vec->size();
     double mid_beg_plat_x = ( vec->begin()->x + (vec->begin()+1)->x ) / 2;//middle of the beginning of platform
     double mid_beg_plat_y = ( vec->begin()->y + (vec->begin()+1)->y ) / 2;
-    ROS_INFO("org_plat_x:%forg_plat_y:%f beg_plat_x:%f\tbeg_plat_y:%f",middle_x, middle_y, mid_beg_plat_x, mid_beg_plat_y);
+    //ROS_INFO("org_plat_x:%forg_plat_y:%f beg_plat_x:%f\tbeg_plat_y:%f",middle_x, middle_y, mid_beg_plat_x, mid_beg_plat_y);
     if(middle_x - mid_beg_plat_x == 0.0)
     {
       if(middle_y - mid_beg_plat_y < 0.0)
@@ -501,7 +392,7 @@ namespace laser_filters{
     for (geometry_msgs::Polygon platform : platform_array_)//iteration all platforms
     {
       visualization_msgs::Marker marking_plat, marking_line;
-      marking_plat.header.frame_id = "v/mmzfhnol9ro6/map";
+      marking_plat.header.frame_id = map_frame_;
       marking_plat.header.stamp = ros::Time();
       marking_plat.ns = "platform";
       marking_plat.id = index++;
@@ -530,7 +421,7 @@ namespace laser_filters{
       marker_pub_.publish(marking_plat);
 
       /*create line of expected points*/
-      marking_line.header.frame_id = "v/mmzfhnol9ro6/map";
+      marking_line.header.frame_id = map_frame_;
       marking_line.header.stamp = ros::Time();
       marking_line.ns = "line";
       marking_line.id = index++;
@@ -579,7 +470,7 @@ namespace laser_filters{
     double line_2[2];//mx + n(m, n)
     calculateLine(line_2, points_of_platform[1].x, points_of_platform[1].y, points_of_platform[2].x, points_of_platform[2].y);
     //ROS_INFO("m_1:%f n_1%f  m_2:%f n_2%f", line_1[0] , line_1[1], line_2[0], line_2[1]);
-    marking_line.header.frame_id = "v/mmzfhnol9ro6/map";
+    marking_line.header.frame_id = map_frame_;
     marking_line.header.stamp = ros::Time();
     marking_line.ns = "line";
     marking_line.id = 55 + index_of_platform;
