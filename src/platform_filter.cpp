@@ -7,6 +7,7 @@ namespace laser_filters{
     platform_sub_ = private_nh.subscribe("/platform_zone", 1000, &PlatformFilter::PlatformZoneCallBack, this);
     marker_pub_ = private_nh.advertise<visualization_msgs::Marker>("/vis_platforms", 1000);
     platforms_ready_ = false;
+    conf_ = false;
     is_on_ground_ = true;
     platforms_id_ = "";
     tfUpdate(ros::Time(0));
@@ -16,16 +17,16 @@ namespace laser_filters{
     dyn_server_->setCallback(f);
     ros::spinOnce();
     
-    bool conf = getParam("tolerance", tolerance_) && getParam("max_distance", max_distance_)
+    conf_ = getParam("tolerance", tolerance_) && getParam("max_distance", max_distance_)
      && getParam("number_skipped_angle", skipped_angle_) && getParam("threshold_coefficient", threshold_coef_);
-    if(conf)
+    if(conf_)
     {
       ROS_INFO("Configuration completed.");
       ROS_INFO("Platforms are waiting");
-      return true;
+      return conf_;
     }
     ROS_WARN("Configuration could not completed. Platform parameters are not reachable");
-    return false;
+    return conf_;
   }
 
   PlatformFilter::PlatformFilter(){//I may need to carry that transformation to the configure method (so I did:) but it was also wrong)
@@ -152,7 +153,6 @@ namespace laser_filters{
   {
     tfUpdate(data_in.header.stamp);//taking tf data
     data_out = data_in;
-    platform_lines_.clear();//because of not filling again and again
     if(platforms_ready_ )//is published the platforms by the user
     {
       visualizePlatforms();
@@ -247,6 +247,8 @@ namespace laser_filters{
               count++;
             }
          }
+         platform_cloud cl;
+         platform_lines_[pol.string_of_zone] = cl;//clear inside because of not filling again and again
          index_of_platform++;
       }
       
@@ -268,20 +270,21 @@ namespace laser_filters{
   /*memorize the platforms position*/
   void PlatformFilter::PlatformZoneCallBack(const laser_filters::polygon_array::ConstPtr& msg)
   {
-    /*if it is a new call or first call*/
-    if(platforms_id_.compare(msg->id.c_str()) != 0 || platforms_id_.compare("") == 0 )
-    {
-      platform_array_ = msg->points_to_points;
-      pitches_ = msg->angles;
-      platforms_id_ = msg->id;
-      polygons_data_.clear();
-      platforms_ready_ = CarryPolygons();//creating polygon strings that describe places where scan data is expected to come
-      //CarryPolygon function will return bool because of controlling data accuracy
-    }
-    if(msg->id.compare("") == 0)//if id is not given, all platforms will not be executed
-    {
-      ROS_INFO("platforms ID did not given");
-      platforms_ready_ = false;
+    if(conf_){
+      /*if it is a new call or first call*/
+      if(platforms_id_.compare(msg->id.c_str()) != 0 || platforms_id_.compare("") == 0 )
+      {
+        platform_array_ = msg->points_to_points;
+        pitches_ = msg->angles;
+        platforms_id_ = msg->id;
+        platforms_ready_ = CarryPolygons();//creating polygon strings that describe places where scan data is expected to come
+        //CarryPolygon function will return bool because of controlling data accuracy
+      }
+      if(msg->id.compare("") == 0)//if id is not given, all platforms will not be executed
+      {
+        ROS_INFO("platforms ID did not given");
+        platforms_ready_ = false;
+      }
     }
   }
 
@@ -291,44 +294,10 @@ namespace laser_filters{
     max_distance_ = config.max_distance;
     skipped_angle_ = config.number_skipped_angle;
     threshold_coef_ = config.threshold_coefficient;
+    if(platforms_ready_)
+      platforms_ready_ = CarryPolygons();//do it again according to new tolerance
   }
 
-  /*control the intersection of reading scanning data to the any of the platforms*/
-  /*int PlatformFilter::isOnPlatform(float angle, double range)
-  {
-    double angle_of_alfa = angle + laser_yaw_;
-    double scanning_point_y = laser_y_ + (range * std::sin(angle_of_alfa));//according to map
-    double scanning_point_x = laser_x_ + (range * std::cos(angle_of_alfa));
-    //now we know that reading point, laser point, platforms' points
-    //ROS_INFO("laser_x:%f,laser_y:%f\tlaser_yaw:%f\nscan point angle:%f\t(%f,%f)",laser_x_, laser_y_, laser_yaw_
-    //                                                      , angle, scanning_point_x, scanning_point_y);
-
-    std::vector<polygons>::iterator it_polygons = polygons_data_.begin();//has to be platform_array_ is same size 
-    for (geometry_msgs::Polygon platform : platform_array_)//iteration all platforms
-    {
-      std::vector<geometry_msgs::Point32> points_of_platform = platform.points;
-
-      std::string s_polygon;
-
-      if(CloseEnough(&points_of_platform))//if it is far we do not control
-      {
-
-        if(isOnGround(it_polygons->string_of_zone) )
-       	  s_polygon = it_polygons->string_of_polygon[0];//control the polygon that is on the zone
-     	  else
-          s_polygon = it_polygons->string_of_polygon[1];//control the polygon that is on the ground
-
-        if(exactlyPlatform(scanning_point_x, scanning_point_y, s_polygon))
-        {
-          //ROS_INFO("DELETING...(%f,%f)\n%s", scanning_point_x, scanning_point_y, s_polygon.c_str());
-          return it_polygons - polygons_data_.begin();
-        }
-      }
-    it_polygons++;
-    }
-    return -1;
-  }
-  */
   int PlatformFilter::isOnPlatform(float scan_x, float scan_y)
   {
     std::vector<polygons>::iterator it_polygons = polygons_data_.begin();//has to be platform_array_ is same size 
@@ -414,15 +383,16 @@ namespace laser_filters{
 
   }
 
-  /*platforms' lines taken carry to the zone and ground(named polygon)*/
+  /*platforms' lines taken and carried to on the zone and ground(named polygon) also initilize the platforms data*/
   bool PlatformFilter::CarryPolygons()
   {
+    polygons_data_.clear();
+    
     if(pitches_.size() != platform_array_.size())
     {
       ROS_WARN("ANGLE VALUES AND PLATFORM VALUES NOT MATCHING");
       return false;
     }
-
     std::vector<double>::iterator pitch_angles_it = pitches_.begin();
     
     for (geometry_msgs::Polygon msg_pol : platform_array_ )//iteration all the platforms
@@ -471,12 +441,14 @@ namespace laser_filters{
                              + std::to_string(points_of_platform[2].x) + " " + std::to_string(points_of_platform[2].y) + ","
                              + std::to_string(points_of_platform[3].x) + " " + std::to_string(points_of_platform[3].y) + ","
                              + std::to_string(points_of_platform[0].x) + " " + std::to_string(points_of_platform[0].y) + "))";
-
+      
       polygons_data_.push_back(temp_pol);
+      platform_cloud cl;
+      platform_lines_[temp_pol.string_of_zone] = cl;
       pitch_angles_it++;
 
-      ROS_INFO("%ith polygon was carried. polygon on the zone:%s \npolygon on the ground:%s\npolygon zones itself:%s\ndirection_x:%f\tdirection_y:%f\n", (int)(pitch_angles_it - pitches_.begin())
-      , temp_pol.string_of_polygon[0].c_str(), temp_pol.string_of_polygon[1].c_str(), temp_pol.string_of_zone.c_str(), temp_pol.transport[0], temp_pol.transport[1]);
+      ROS_INFO("%ith polygon was carried. polygon on the zone:%s \npolygon on the ground:%s\npolygon zones itself:%s\ndirection_x:%f\tdirection_y:%f\nyaw:%f\n", (int)(pitch_angles_it - pitches_.begin())
+      , temp_pol.string_of_polygon[0].c_str(), temp_pol.string_of_polygon[1].c_str(), temp_pol.string_of_zone.c_str(), temp_pol.transport[0], temp_pol.transport[1], yaw);
     }
     return true;
   }
@@ -501,19 +473,25 @@ namespace laser_filters{
     middle_y /= vec->size();
     double mid_beg_plat_x = ( vec->begin()->x + (vec->begin()+1)->x ) / 2;//middle of the beginning of platform
     double mid_beg_plat_y = ( vec->begin()->y + (vec->begin()+1)->y ) / 2;
-    //ROS_INFO("org_plat_x:%forg_plat_y:%f beg_plat_x:%f\tbeg_plat_y:%f",middle_x, middle_y, mid_beg_plat_x, mid_beg_plat_y);
-    if(middle_x - mid_beg_plat_x == 0)
+    ROS_INFO("org_plat_x:%forg_plat_y:%f beg_plat_x:%f\tbeg_plat_y:%f",middle_x, middle_y, mid_beg_plat_x, mid_beg_plat_y);
+    if(middle_x - mid_beg_plat_x == 0.0)
     {
-      if(middle_y - mid_beg_plat_y < 0)
+      if(middle_y - mid_beg_plat_y < 0.0)
         *yaw = 270;
-      else if(middle_y - mid_beg_plat_y > 0)
+      else if(middle_y - mid_beg_plat_y > 0.0)
         *yaw = 90;
     }
     else
-      if(middle_y - mid_beg_plat_y == 0 && middle_x - mid_beg_plat_x < 0)
+      if(middle_y - mid_beg_plat_y == 0.0 && middle_x - mid_beg_plat_x < 0.0)
         *yaw = 180;
-      else
-        *yaw = std::atan((middle_y - mid_beg_plat_y) / (middle_x - mid_beg_plat_x))*180/PI;
+      else{
+        double temp = std::atan((middle_y - mid_beg_plat_y) / (middle_x - mid_beg_plat_x))*180/PI;
+        if(middle_y > mid_beg_plat_y)
+          temp = std::abs(temp); 
+        else
+          temp = -std::abs(temp); 
+        *yaw = temp;
+      }
   }
 
   void PlatformFilter::visualizePlatforms()//at the same Hz as update

@@ -42,6 +42,7 @@ namespace laser_filters{
     double range;
     float angle;
   };*/
+  
   struct platform_cloud{
     pcl::PointCloud<pcl::PointXYZ> cloud;
     int count = 0;
@@ -72,6 +73,7 @@ class PlatformFilter : public filters::FilterBase<sensor_msgs::LaserScan>
     bool CloseEnough(std::vector<geometry_msgs::Point32> *);
     bool isOnGround(std::string);
 		void tfUpdate(ros::Time);
+    void platform_lines_clear();
     void indexBaseCountNAN(std::vector<int>&, const sensor_msgs::LaserScan&);
 		bool CarryPolygons();
     void calculateDirection(double*, double, double);
@@ -100,6 +102,7 @@ class PlatformFilter : public filters::FilterBase<sensor_msgs::LaserScan>
 		
 		bool platforms_ready_;//when platform data came, it is true
     bool is_on_ground_;// if robot not on the upside of platform or on the platform, it is true
+    bool conf_;
 		//std::map<std::string, std::vector<scan_data>> platform_lines_;//holding that platforms'
     std::map<std::string, platform_cloud> platform_lines_;//holding that platforms'
     std::map<int, int> point_to_scan_index_map_;
