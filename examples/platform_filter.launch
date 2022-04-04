@@ -11,6 +11,6 @@
     <param name="laser_topic" value="$(arg robot_id)/$(arg laser_topic)"/>
     <remap from="/tf" to="$(arg robot_id)/tf" />
     <remap from="/tf_static" to="$(arg robot_id)/tf_static" />
-    <remap from="/map" to="v/mmzfhnol9ro6/map" />
+    <remap from="/map" to="$(arg map)" />
   </node>
 </launch>
