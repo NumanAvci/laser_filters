@@ -4,7 +4,7 @@ namespace laser_filters{
 
   bool PlatformFilter::configure(){
     ros::NodeHandle private_nh("~" + getName());
-    ros::NodeHandle nh("/laser_filter");
+    ros::NodeHandle nh("/laser_filter");//for looking parent parameter 
     platform_sub_ = private_nh.subscribe("/platform_zone", 1000, &PlatformFilter::PlatformZoneCallBack, this);
     marker_pub_ = private_nh.advertise<visualization_msgs::Marker>("/vis_platforms", 1000);
     platforms_ready_ = false;
@@ -17,14 +17,12 @@ namespace laser_filters{
     f = boost::bind(&laser_filters::PlatformFilter::reconfigureCB, this, _1, _2);
     dyn_server_->setCallback(f);
     ros::spinOnce();
-    std::string id;
-    getParam("robot_id", id);
-    ROS_INFO("robot id:\t%s", getName().c_str());
+    //ROS_INFO("robot id:\t%s", getName().c_str());
     conf_ = private_nh.getParam("tolerance", tolerance_) && private_nh.getParam("max_distance", max_distance_)
      && private_nh.getParam("number_skipped_angle", skipped_angle_) && private_nh.getParam("threshold_coefficient", threshold_coef_)
      && nh.getParam("laser_frame", laser_frame_) && nh.getParam("map_frame", map_frame_);
-    ROS_INFO("\nthreshold:\t%f\nmax_distance:\t%f\nskipped_angle:\t%d\nthreshold_coef:\t%f\nlaser_f:\t%s\nmap_f:\t%s"
-    , tolerance_, max_distance_, skipped_angle_, threshold_coef_, laser_frame_.c_str(), map_frame_.c_str());
+    /*ROS_INFO("\nthreshold:\t%f\nmax_distance:\t%f\nskipped_angle:\t%d\nthreshold_coef:\t%f\nlaser_f:\t%s\nmap_f:\t%s"
+    , tolerance_, max_distance_, skipped_angle_, threshold_coef_, laser_frame_.c_str(), map_frame_.c_str());*/
     if(conf_)
     {
       ROS_INFO("Configuration completed.");
@@ -146,7 +144,7 @@ namespace laser_filters{
     }
     return true;
   }
-  
+  /*count NAN values until coming that index and inizilize the vector that have same size with scan data*/
   void PlatformFilter::indexBaseCountNAN(std::vector<int>& vec, const sensor_msgs::LaserScan& data)
   {
     int count = 0;
@@ -161,7 +159,8 @@ namespace laser_filters{
   /*memorize the platforms position*/
   void PlatformFilter::PlatformZoneCallBack(const laser_filters::polygon_array::ConstPtr& msg)
   {
-    if(conf_){
+    if(conf_)
+    {
       /*if it is a new call or first call*/
       if(platforms_id_.compare(msg->id.c_str()) != 0 || platforms_id_.compare("") == 0 )
       {
@@ -335,7 +334,7 @@ namespace laser_filters{
       
       polygons_data_.push_back(temp_pol);
       platform_cloud cl;
-      platform_lines_[temp_pol.string_of_zone] = cl;
+      platform_lines_[temp_pol.string_of_zone] = cl;//declaration
       pitch_angles_it++;
 
       ROS_INFO("%ith polygon was carried. polygon on the zone:%s \npolygon on the ground:%s\npolygon zones itself:%s\ndirection_x:%f\tdirection_y:%f\nyaw:%f\n", (int)(pitch_angles_it - pitches_.begin())
@@ -377,11 +376,11 @@ namespace laser_filters{
         *yaw = 180;
       else{
         double temp = std::atan((middle_y - mid_beg_plat_y) / (middle_x - mid_beg_plat_x))*180/PI;
+
         if(middle_y > mid_beg_plat_y)
-          temp = std::abs(temp); 
+          *yaw = std::abs(temp); 
         else
-          temp = -std::abs(temp); 
-        *yaw = temp;
+          *yaw = -std::abs(temp); 
       }
   }
 
@@ -514,7 +513,7 @@ namespace laser_filters{
     out.x = 0;
     if(m_1 != m_2)
       out.x = (n_2 - n_1) / (m_1 - m_2);
-    else
+    else//parallel each other
       ROS_ERROR("INAPPROPRIATE LINE VALUES ARE REACHED");
     out.y = m_2 * out.x + n_2;
   }

@@ -61,17 +61,14 @@ protected:
 
 public:
   // Constructor
-  ScanToScanFilterChain() :
+  ScanToScanFilterChain(std::string laser_topic) :
     private_nh_("~"),
-    scan_sub_(nh_, "/r3001415b5/scan_front_raw", 50),
+    scan_sub_(nh_, laser_topic, 50),
     tf_(NULL),
     tf_filter_(NULL),
     filter_chain_("sensor_msgs::LaserScan")
   {
     // Configure filter chain
-    /*std::string laser_topic;
-    private_nh_.getParam("laser_topic", laser_topic);
-    scan_sub_(nh_, laser_topic + "", 50);*/
     using_filter_chain_deprecated_ = private_nh_.hasParam("filter_chain");
 
     if (using_filter_chain_deprecated_)
@@ -141,8 +138,10 @@ public:
 int main(int argc, char **argv)
 {
   ros::init(argc, argv, "scan_to_scan_filter_chain");
-  
-  ScanToScanFilterChain t;
+  ros::NodeHandle nh("/laser_filter");
+  std::string laser_topic;
+  nh.getParam("laser_topic", laser_topic);
+  ScanToScanFilterChain t(laser_topic);
   ros::spin();
   
   return 0;

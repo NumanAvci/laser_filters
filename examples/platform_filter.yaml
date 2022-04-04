@@ -2,7 +2,7 @@ scan_filter_chain:
 - name: Platform
   type: laser_filters/PlatformFilter
   params:
-    tolerance: 0.2
+    tolerance: 0.5
     max_distance: 10.0  
     number_skipped_angle: 1
     threshold_coefficient: 1.0

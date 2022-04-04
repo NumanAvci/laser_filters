@@ -37,11 +37,6 @@
 namespace laser_filters{
 	constexpr double PI = std::acos(-1);//pi value
   
-  /*struct scan_data{
-    uint16_t index;
-    double range;
-    float angle;
-  };*/
 
   struct platform_cloud{
     pcl::PointCloud<pcl::PointXYZ> cloud;
@@ -67,7 +62,6 @@ class PlatformFilter : public filters::FilterBase<sensor_msgs::LaserScan>
 	private:
 		void PlatformZoneCallBack(const laser_filters::polygon_array::ConstPtr& msg);
     void reconfigureCB(laser_filters::PlatformFilterConfig& config, uint32_t level);
-		//int isOnPlatform(float angle, double range);
 		int isOnPlatform(float scan_x, float scan_y);
     bool exactlyPlatform(double, double, std::string polygon);
     bool CloseEnough(std::vector<geometry_msgs::Point32> *);
@@ -95,17 +89,16 @@ class PlatformFilter : public filters::FilterBase<sensor_msgs::LaserScan>
     double tolerance_;
     double max_distance_;
     int skipped_angle_;
-    double threshold_coef_;
-    std::string laser_frame_;
-    std::string map_frame_;
+    double threshold_coef_;//for ransac
+    std::string laser_frame_;//coming as a parameter
+    std::string map_frame_;//coming as a parameter
     std::vector<double> pitches_;//store the pitch angles of platforms
 		std::vector<geometry_msgs::Polygon> platform_array_;//store the values coming from message
     std::vector<polygons> polygons_data_;//store the calculated and creating values of platforms
 		
 		bool platforms_ready_;//when platform data came, it is true
     bool is_on_ground_;// if robot not on the upside of platform or on the platform, it is true
-    bool conf_;
-		//std::map<std::string, std::vector<scan_data>> platform_lines_;//holding that platforms'
+    bool conf_;//have parameters got succesfully
     std::map<std::string, platform_cloud> platform_lines_;//holding that platforms'
     std::map<int, int> point_to_scan_index_map_;
     std::string platforms_id_;//message name coming from outside
