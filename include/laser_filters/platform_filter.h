@@ -79,29 +79,29 @@ class PlatformFilter : public filters::FilterBase<sensor_msgs::LaserScan>
     double calculateDistance(double , double , double , double );
 
 		ros::Subscriber platform_sub_;
-    ros::Subscriber scan_sub_;
     ros::Publisher marker_pub_;//for publishing platforms and their calculated space
 		tf::TransformListener tf_listener_;//for finding laser's position 
     std::shared_ptr<dynamic_reconfigure::Server<laser_filters::PlatformFilterConfig>> dyn_server_;
     boost::recursive_mutex own_mutex_;
-		
-		double laser_x_, laser_y_, laser_z_, laser_yaw_;//coordinate of laser according to map
+    bool conf_;//have parameters got succesfully
+		/*parameters*/
     double tolerance_;
     double max_distance_;
     int skipped_angle_;
     double threshold_coef_;//for ransac
     std::string laser_frame_;//coming as a parameter
     std::string map_frame_;//coming as a parameter
+
+		double laser_x_, laser_y_, laser_z_, laser_yaw_;//coordinate of laser according to map
     std::vector<double> pitches_;//store the pitch angles of platforms
 		std::vector<geometry_msgs::Polygon> platform_array_;//store the values coming from message
     std::vector<polygons> polygons_data_;//store the calculated and creating values of platforms
-		
-		bool platforms_ready_;//when platform data came, it is true
-    bool is_on_ground_;// if robot not on the upside of platform or on the platform, it is true
-    bool conf_;//have parameters got succesfully
-    std::map<std::string, platform_cloud> platform_lines_;//holding that platforms'
-    std::map<int, int> point_to_scan_index_map_;
     std::string platforms_id_;//message name coming from outside
+		bool platforms_ready_;//when platform data came, it is true
+		
+    bool is_on_ground_;// if robot not on the upside of platform or on the platform, it is true
+    std::map<int, platform_cloud> platform_lines_;//holding that platforms' platform cloud value
+    std::map<int, int> point_to_scan_index_map_;//map holding scan index values corresponding point cloud index values 
 };
 
 }
