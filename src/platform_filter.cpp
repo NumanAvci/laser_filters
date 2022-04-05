@@ -11,7 +11,6 @@ namespace laser_filters{
     conf_ = false;
     is_on_ground_ = true;
     platforms_id_ = "";
-    tfUpdate(ros::Time(0));
     dyn_server_.reset(new dynamic_reconfigure::Server<laser_filters::PlatformFilterConfig>(own_mutex_, private_nh));
     dynamic_reconfigure::Server<laser_filters::PlatformFilterConfig>::CallbackType f;
     f = boost::bind(&laser_filters::PlatformFilter::reconfigureCB, this, _1, _2);
@@ -20,6 +19,7 @@ namespace laser_filters{
     conf_ = private_nh.getParam("tolerance", tolerance_) && private_nh.getParam("max_distance", max_distance_)
      && private_nh.getParam("number_skipped_angle", skipped_angle_) && private_nh.getParam("threshold_coefficient", threshold_coef_)
      && nh.getParam("laser_frame", laser_frame_) && nh.getParam("map_frame", map_frame_);
+    tfUpdate(ros::Time(0));
     /*ROS_INFO("\nthreshold:\t%f\nmax_distance:\t%f\nskipped_angle:\t%d\nthreshold_coef:\t%f\nlaser_f:\t%s\nmap_f:\t%s"
     , tolerance_, max_distance_, skipped_angle_, threshold_coef_, laser_frame_.c_str(), map_frame_.c_str());*/
     if(conf_)
@@ -154,20 +154,19 @@ namespace laser_filters{
   }
 
   /*memorize the platforms position*/
-  void PlatformFilter::PlatformZoneCallBack(const laser_filters::polygon_array::ConstPtr& msg)
+  void PlatformFilter::PlatformZoneCallBack(const milvus_msgs::MapFeaturesStamped::ConstPtr& msg)
   {
     if(conf_)
     {
-      /*if it is a new call or first call*/
-      if(platforms_id_.compare(msg->id.c_str()) != 0 || platforms_id_.compare("") == 0 )
+      //if it is a new call or first call
+      if(platforms_id_.compare(msg->map_features[0].name.c_str()) != 0 || platforms_id_.compare("") == 0 )
       {
-        platform_array_ = msg->points_to_points;
-        pitches_ = msg->angles;
-        platforms_id_ = msg->id;
+        platform_array_ = msg->map_features;
+        platforms_id_ = msg->map_features[0].name;
         platforms_ready_ = CarryPolygons();//creating polygon strings that describe places where scan data is expected to come
         //CarryPolygon function will return bool because of controlling data accuracy
       }
-      if(msg->id.compare("") == 0)//if id is not given, all platforms will not be executed
+      if(msg->map_features[0].id.compare("") == 0)//if id is not given, all platforms will not be executed
       {
         ROS_INFO("platforms ID did not given");
         platforms_ready_ = false;
@@ -189,9 +188,9 @@ namespace laser_filters{
   {
     std::vector<polygons>::iterator it_beg = polygons_data_.begin();
     std::vector<polygons>::iterator it_polygons = it_beg;//has to be platform_array_ is same size 
-    for (geometry_msgs::Polygon platform : platform_array_)//iteration all platforms
+    for (milvus_msgs::MapFeature platform : platform_array_)//iteration all platforms
     {
-      std::vector<geometry_msgs::Point32> points_of_platform = platform.points;
+      std::vector<geometry_msgs::Pose2D> points_of_platform = platform.geometries[0].points;
 
       std::string str_polygon;
 
@@ -226,7 +225,7 @@ namespace laser_filters{
   }
 
   /*check is it close enough to control that platform*/
-  bool PlatformFilter::CloseEnough(std::vector<geometry_msgs::Point32> *points_of_platform)//can be develop
+  bool PlatformFilter::CloseEnough(std::vector<geometry_msgs::Pose2D> *points_of_platform)//can be develop
   {
     double mid_beg_plat_x = (points_of_platform->front().x + (points_of_platform->begin() + 1)->x) / 2;
     double mid_beg_plat_y = (points_of_platform->front().y + (points_of_platform->begin() + 1)->y) / 2;
@@ -249,18 +248,21 @@ namespace laser_filters{
   {
     tf::StampedTransform tf_transform_laser;
     bool tf_not_ready = true;
+    int count = 0;
     while(tf_not_ready && ros::ok())
     {
       //ROS_INFO("%f",t.toSec());
       try{
         //ros::Duration(t.toSec()).sleep();
-        tf_listener_.lookupTransform("v/mmzfhnol9ro6/map", "r3001415b5/base_front_laser_link", t , tf_transform_laser);//laser's position according to map        tf_not_ready = false;
+        tf_listener_.lookupTransform(map_frame_, laser_frame_, t , tf_transform_laser);//laser's position according to map        tf_not_ready = false;
         tf_not_ready = false;
       }
       catch (tf::TransformException &ex){
-        ROS_ERROR("%s",ex.what()); 
+        ROS_ERROR("%s%i",ex.what(),count++); 
         ros::Duration(0.5).sleep();
         tf_not_ready = true;
+        if(count >= 2)
+          t = ros::Time(0);
       }
     }
 
@@ -276,30 +278,51 @@ namespace laser_filters{
   {
     polygons_data_.clear();
 
-    if(pitches_.size() != platform_array_.size())
-    {
-      ROS_WARN("ANGLE VALUES AND PLATFORM VALUES NOT MATCHING");
-      return false;
-    }
-    std::vector<double>::iterator pitch_angles_it = pitches_.begin();
-    
-    for (geometry_msgs::Polygon msg_pol : platform_array_ )//iteration all the platforms
+    int index = 0;
+
+    for (milvus_msgs::MapFeature msg_pol : platform_array_ )//iteration all the platforms
     {
       polygons temp_pol;
-      double yaw;
-      std::vector<geometry_msgs::Point32> points_of_platform = msg_pol.points;
-      if(points_of_platform.size() != 4)
+      double pitch_angle = std::stod(msg_pol.payload);
+      if(msg_pol.geometries.size() != 1)
       {
-        ROS_WARN("PLATFORMS MUST HAVE 4 POINTS");
+        ROS_WARN("EVERY GEOMETRIES MUST HAVE 1 ELEMENT");
         return false;
       }
-      if( *pitch_angles_it > 90.0)
+ 
+      if(platforms_id_.compare(msg_pol.name.c_str()) != 0)
+      {
+        ROS_WARN("EVERY MAP FEATURE NAME MUST BE SAME");
+        return false;
+      }
+
+      if(!(msg_pol.type.compare("zone") == 0 && msg_pol.subtype.compare("ramp_zone") == 0))
+      {
+        return false;
+      }
+
+      if( pitch_angle > 90.0)
       {
         ROS_WARN("ANGLE VALUES CAN NOT HIGHER THAN 90 degree");
         return false;
       }
+      
+      if(msg_pol.geometries[0].type.compare("ramp_zone") != 0)
+      {
+        ROS_WARN("GEOMETRY TYPE MUST BE \"ramp_zone\"");
+        return false;
+      }
+
+      std::vector<geometry_msgs::Pose2D> points_of_platform = msg_pol.geometries[0].points;
+      if(points_of_platform.size() != 4)
+      {
+        ROS_WARN("PLATFORMS MUST HAVE EXACTLY 4 POINTS");
+        return false;
+      }
+
+      double yaw;
       calculateYaw(&yaw, &points_of_platform);// calculate direction angle(yaw)
-      calculateDirection(temp_pol.transport, *pitch_angles_it, yaw);//calculate the amount of displacement and assign to the temp.transport
+      calculateDirection(temp_pol.transport, pitch_angle, yaw);//calculate the amount of displacement and assign to the temp.transport
       temp_pol.string_of_polygon[0] = "POLYGON((";//on the zone
       temp_pol.string_of_polygon[1] = "POLYGON((";//on the ground
       temp_pol.string_of_zone = "POLYGON((";//platforms' itself
@@ -329,13 +352,12 @@ namespace laser_filters{
                              + std::to_string(points_of_platform[2].x) + " " + std::to_string(points_of_platform[2].y) + ","
                              + std::to_string(points_of_platform[3].x) + " " + std::to_string(points_of_platform[3].y) + ","
                              + std::to_string(points_of_platform[0].x) + " " + std::to_string(points_of_platform[0].y) + "))";
-      
+
       polygons_data_.push_back(temp_pol);
       platform_cloud cl;
-      platform_lines_[pitch_angles_it - pitches_.begin()] = cl;//declaration
-      pitch_angles_it++;
+      platform_lines_[index++] = cl;//declaration
 
-      ROS_INFO("%ith polygon was carried. polygon on the zone:%s \npolygon on the ground:%s\npolygon zones itself:%s\ndirection_x:%f\tdirection_y:%f\nyaw:%f\n", (int)(pitch_angles_it - pitches_.begin())
+      ROS_INFO("%ith polygon was carried. polygon on the zone:%s \npolygon on the ground:%s\npolygon zones itself:%s\ndirection_x:%f\tdirection_y:%f\nyaw:%f\n", index
       , temp_pol.string_of_polygon[0].c_str(), temp_pol.string_of_polygon[1].c_str(), temp_pol.string_of_zone.c_str(), temp_pol.transport[0], temp_pol.transport[1], yaw);
     }
     return true;
@@ -349,10 +371,10 @@ namespace laser_filters{
   }
 
   /*calculate middle of the polygon and set the yaw as a vector that is through beginning line's middle to that point*/
-  void PlatformFilter::calculateYaw(double *yaw, std::vector<geometry_msgs::Point32> *vec)//return the degree of yaw
+  void PlatformFilter::calculateYaw(double *yaw, std::vector<geometry_msgs::Pose2D> *vec)//return the degree of yaw
   {
     double middle_x, middle_y;
-    for(geometry_msgs::Point32 point : *vec)//find middle of the platform
+    for(geometry_msgs::Pose2D point : *vec)//find middle of the platform
     {
       middle_x += point.x;
       middle_y += point.y;
@@ -386,7 +408,7 @@ namespace laser_filters{
   {
     int index = 0;
     std::vector<polygons>::iterator it_polygons = polygons_data_.begin();
-    for (geometry_msgs::Polygon platform : platform_array_)//iteration all platforms
+    for (milvus_msgs::MapFeature platform : platform_array_)//iteration all platforms
     {
       visualization_msgs::Marker marking_plat, marking_line;
       marking_plat.header.frame_id = map_frame_;
@@ -395,12 +417,12 @@ namespace laser_filters{
       marking_plat.id = index++;
       marking_plat.type = visualization_msgs::Marker::CUBE;
       marking_plat.action = visualization_msgs::Marker::ADD;
-      marking_plat.pose.position.x = (platform.points[0].x + platform.points[1].x + platform.points[2].x + platform.points[3].x) / 4;
-      marking_plat.pose.position.y = (platform.points[0].y + platform.points[1].y + platform.points[2].y + platform.points[3].y) / 4;
+      marking_plat.pose.position.x = (platform.geometries[0].points[0].x + platform.geometries[0].points[1].x + platform.geometries[0].points[2].x + platform.geometries[0].points[3].x) / 4;
+      marking_plat.pose.position.y = (platform.geometries[0].points[0].y + platform.geometries[0].points[1].y + platform.geometries[0].points[2].y + platform.geometries[0].points[3].y) / 4;
       marking_plat.pose.position.z = 0;
       tf2::Quaternion q;
       double yaw;
-      calculateYaw(&yaw, &platform.points);
+      calculateYaw(&yaw, &platform.geometries[0].points);
       yaw = (yaw-90)*PI/180;
       q.setRPY(0, 0, yaw);
       q = q.normalize();
@@ -408,8 +430,8 @@ namespace laser_filters{
       marking_plat.pose.orientation.y = q.getY();
       marking_plat.pose.orientation.z = q.getZ();
       marking_plat.pose.orientation.w = q.getW();
-      marking_plat.scale.x = calculateDistance(platform.points[0].x, platform.points[0].y, platform.points[1].x, platform.points[1].y);//weight of platform
-      marking_plat.scale.y = calculateDistance(platform.points[0].x, platform.points[0].y, platform.points[3].x, platform.points[3].y);//length of platform
+      marking_plat.scale.x = calculateDistance(platform.geometries[0].points[0].x, platform.geometries[0].points[0].y, platform.geometries[0].points[1].x, platform.geometries[0].points[1].y);//weight of platform
+      marking_plat.scale.y = calculateDistance(platform.geometries[0].points[0].x, platform.geometries[0].points[0].y, platform.geometries[0].points[3].x, platform.geometries[0].points[3].y);//length of platform
       marking_plat.scale.z = 0.001;
       marking_plat.color.a = 0.3; // Don't forget to set the alpha!
       marking_plat.color.r = 0.8*index;
@@ -427,17 +449,17 @@ namespace laser_filters{
       geometry_msgs::Point point_1, point_2;
       if(isOnGround(it_polygons->string_of_zone))
       {
-        point_1.x = platform.points[0].x + it_polygons->transport[0];
-        point_1.y = platform.points[0].y + it_polygons->transport[1];
-        point_2.x = platform.points[1].x + it_polygons->transport[0];
-        point_2.y = platform.points[1].y + it_polygons->transport[1];
+        point_1.x = platform.geometries[0].points[0].x + it_polygons->transport[0];
+        point_1.y = platform.geometries[0].points[0].y + it_polygons->transport[1];
+        point_2.x = platform.geometries[0].points[1].x + it_polygons->transport[0];
+        point_2.y = platform.geometries[0].points[1].y + it_polygons->transport[1];
       }
       else
       {
-        point_1.x = platform.points[0].x - it_polygons->transport[0];
-        point_1.y = platform.points[0].y - it_polygons->transport[1];
-        point_2.x = platform.points[1].x - it_polygons->transport[0];
-        point_2.y = platform.points[1].y - it_polygons->transport[1];
+        point_1.x = platform.geometries[0].points[0].x - it_polygons->transport[0];
+        point_1.y = platform.geometries[0].points[0].y - it_polygons->transport[1];
+        point_2.x = platform.geometries[0].points[1].x - it_polygons->transport[0];
+        point_2.y = platform.geometries[0].points[1].y - it_polygons->transport[1];
       }
       marking_line.points.push_back(point_1);
       marking_line.points.push_back(point_2);
@@ -461,7 +483,7 @@ namespace laser_filters{
     fitting_line[0] = (vec[4]/vec[3]);//delta y / delta x
     fitting_line[1] = vec[1] - fitting_line[0] * vec[0];
     //ROS_INFO("platform:%i\nfit m: %f, fit n: %f", index_of_platform, fitting_line[0], fitting_line[1]);
-    std::vector<geometry_msgs::Point32> points_of_platform = platform_array_[index_of_platform].points;
+    std::vector<geometry_msgs::Pose2D> points_of_platform = platform_array_[index_of_platform].geometries[0].points;
     double line_1[2];//mx + n(m, n)
     calculateLine(line_1, points_of_platform[0].x, points_of_platform[0].y, points_of_platform[3].x, points_of_platform[3].y);
     double line_2[2];//mx + n(m, n)

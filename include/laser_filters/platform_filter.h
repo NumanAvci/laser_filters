@@ -1,38 +1,34 @@
 #include <ros/ros.h>
 #include <sensor_msgs/LaserScan.h>
-#include <geometry_msgs/Point32.h>
-#include <geometry_msgs/Polygon.h>
-#include <laser_filters/polygon_array.h>
+#include <laser_geometry/laser_geometry.h>
+#include <sensor_msgs/PointCloud2.h>
+#include <sensor_msgs/point_cloud2_iterator.h>
+#include "filters/filter_base.h"
+#include "milvus_msgs/MapFeaturesStamped.h"
 #include <visualization_msgs/Marker.h>
 #include <tf/transform_listener.h>
 #include <tf2/LinearMath/Quaternion.h>
+#include <tf2_ros/buffer.h>
 #include <cmath>
-#include <queue>
 #include <vector>
 #include <string>
 #include <limits>
+//boost library
 #include <boost/geometry.hpp>
 #include <boost/geometry/geometries/linestring.hpp>
 #include <boost/geometry/geometries/point_xy.hpp>
-
-#include <sensor_msgs/PointCloud2.h>
+//pcl library
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
-#include <laser_geometry/laser_geometry.h>
-#include <sensor_msgs/point_cloud2_iterator.h>
-#include <pointcloud_to_laserscan/pointcloud_to_laserscan_nodelet.h>
-#include <tf2_ros/buffer.h>
-
 #include <pcl/console/parse.h>
 #include <pcl/filters/extract_indices.h>
 #include <pcl/point_types.h>
 #include <pcl/sample_consensus/ransac.h>
 #include <pcl/sample_consensus/sac_model_line.h>
+//dynamic reconfiguretion needed
 #include <dynamic_reconfigure/server.h>
 #include <laser_filters/PlatformFilterConfig.h>
-#include "filters/filter_base.h"
-#include <sensor_msgs/LaserScan.h>
 
 namespace laser_filters{
 	constexpr double PI = std::acos(-1);//pi value
@@ -60,17 +56,17 @@ class PlatformFilter : public filters::FilterBase<sensor_msgs::LaserScan>
 		virtual bool configure();
   
 	private:
-		void PlatformZoneCallBack(const laser_filters::polygon_array::ConstPtr& msg);
+    void PlatformZoneCallBack(const milvus_msgs::MapFeaturesStamped::ConstPtr& msg);
     void reconfigureCB(laser_filters::PlatformFilterConfig& config, uint32_t level);
 		int isOnPlatform(float scan_x, float scan_y);
     bool exactlyPlatform(double, double, std::string polygon);//if platform close enough this uses exactly platform
-    bool CloseEnough(std::vector<geometry_msgs::Point32> *);//control the is robots' laser frame close enough to beginning of the platform
+    bool CloseEnough(std::vector<geometry_msgs::Pose2D> *);//control the is robots' laser frame close enough to beginning of the platform
     bool isOnGround(std::string);//where the robot's laser frame
 		void tfUpdate(ros::Time);
     void indexBaseCountNAN(std::vector<int>&, const sensor_msgs::LaserScan&);//until that index how many NAN values the laser data include 
 		bool CarryPolygons();//calculate and carry the expected intersection points of platforms
     void calculateDirection(double*, double, double);//calculate the expected points carrying amount on the x and y axis
-    void calculateYaw(double*, std::vector<geometry_msgs::Point32>*);//according to middle and beg of platform, calculate the yaw of platform
+    void calculateYaw(double*, std::vector<geometry_msgs::Pose2D>*);//according to middle and beg of platform, calculate the yaw of platform
     void visualizePlatforms();//visualize platforms' themself and expected spaces
     void visualizePlatforms(int, Eigen::VectorXf&);//visualize fitting line
     void calculateLine(double* , double beg_x, double beg_y, double end_x, double end_y);//calculate m and n values according to input
@@ -92,8 +88,8 @@ class PlatformFilter : public filters::FilterBase<sensor_msgs::LaserScan>
     std::string map_frame_;//coming as a parameter
 
 		double laser_x_, laser_y_, laser_z_, laser_yaw_;//coordinate of laser according to map
-    std::vector<double> pitches_;//store the pitch angles of platforms
-		std::vector<geometry_msgs::Polygon> platform_array_;//store the values coming from message
+		//std::vector<geometry_msgs::Polygon> platform_array_;//store the values coming from message
+    std::vector<milvus_msgs::MapFeature> platform_array_;//store the values coming from message
     std::vector<polygons> polygons_data_;//store the calculated and creating values of platforms
     std::string platforms_id_;//message name coming from outside
 		bool platforms_ready_;//when platform data came, it is true
