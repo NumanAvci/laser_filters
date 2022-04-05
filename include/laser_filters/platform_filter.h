@@ -38,12 +38,12 @@ namespace laser_filters{
 	constexpr double PI = std::acos(-1);//pi value
   
 
-  struct platform_cloud{
-    pcl::PointCloud<pcl::PointXYZ> cloud;
-    int count = 0;
-    std::vector<int> index_array;
-    double sum_of_distance = 0;
-    bool is_first_it = true;
+  struct platform_cloud{//points data on the one platform 
+    pcl::PointCloud<pcl::PointXYZ> cloud;//points on the platform
+    int count = 0;//hold how many points space .<->.
+    std::vector<int> index_array;//points' indexes in the general cloud msg
+    double sum_of_distance = 0;//sum of distance between points
+    bool is_first_it = true;//it it the first iteration on this platform
   };
 
   struct polygons{
@@ -63,20 +63,19 @@ class PlatformFilter : public filters::FilterBase<sensor_msgs::LaserScan>
 		void PlatformZoneCallBack(const laser_filters::polygon_array::ConstPtr& msg);
     void reconfigureCB(laser_filters::PlatformFilterConfig& config, uint32_t level);
 		int isOnPlatform(float scan_x, float scan_y);
-    bool exactlyPlatform(double, double, std::string polygon);
-    bool CloseEnough(std::vector<geometry_msgs::Point32> *);
-    bool isOnGround(std::string);
+    bool exactlyPlatform(double, double, std::string polygon);//if platform close enough this uses exactly platform
+    bool CloseEnough(std::vector<geometry_msgs::Point32> *);//control the is robots' laser frame close enough to beginning of the platform
+    bool isOnGround(std::string);//where the robot's laser frame
 		void tfUpdate(ros::Time);
-    void platform_lines_clear();
-    void indexBaseCountNAN(std::vector<int>&, const sensor_msgs::LaserScan&);
-		bool CarryPolygons();
-    void calculateDirection(double*, double, double);
-    void calculateYaw(double*, std::vector<geometry_msgs::Point32>*);
-    void visualizePlatforms();
-    void visualizePlatforms(int, Eigen::VectorXf&);
-    void calculateLine(double* , double , double , double , double );
-    void calculateCommonPoint(geometry_msgs::Point& , double , double , double , double );
-    double calculateDistance(double , double , double , double );
+    void indexBaseCountNAN(std::vector<int>&, const sensor_msgs::LaserScan&);//until that index how many NAN values the laser data include 
+		bool CarryPolygons();//calculate and carry the expected intersection points of platforms
+    void calculateDirection(double*, double, double);//calculate the expected points carrying amount on the x and y axis
+    void calculateYaw(double*, std::vector<geometry_msgs::Point32>*);//according to middle and beg of platform, calculate the yaw of platform
+    void visualizePlatforms();//visualize platforms' themself and expected spaces
+    void visualizePlatforms(int, Eigen::VectorXf&);//visualize fitting line
+    void calculateLine(double* , double beg_x, double beg_y, double end_x, double end_y);//calculate m and n values according to input
+    void calculateCommonPoint(geometry_msgs::Point& , double m_1, double n_1, double m_2, double n_2);//calculate and return the point according to m and n values
+    double calculateDistance(double beg_x, double beg_y, double end_x, double end_y);
 
 		ros::Subscriber platform_sub_;
     ros::Publisher marker_pub_;//for publishing platforms and their calculated space
