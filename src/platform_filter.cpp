@@ -244,7 +244,7 @@ namespace laser_filters{
   }
 
   /*collect the new positions data*/
-  void PlatformFilter::tfUpdate(ros::Time t)
+  void PlatformFilter::tfUpdate(ros::Time time)
   {
     tf::StampedTransform tf_transform_laser;
     bool tf_not_ready = true;
@@ -254,15 +254,15 @@ namespace laser_filters{
       //ROS_INFO("%f",t.toSec());
       try{
         //ros::Duration(t.toSec()).sleep();
-        tf_listener_.lookupTransform(map_frame_, laser_frame_, t , tf_transform_laser);//laser's position according to map        tf_not_ready = false;
+        tf_listener_.lookupTransform(map_frame_, laser_frame_, time , tf_transform_laser);//laser's position according to map        tf_not_ready = false;
         tf_not_ready = false;
       }
       catch (tf::TransformException &ex){
-        ROS_ERROR("%s%i",ex.what(),count++); 
+        ROS_ERROR("%s",ex.what()); 
         ros::Duration(0.5).sleep();
         tf_not_ready = true;
-        if(count >= 2)
-          t = ros::Time(0);
+        if(++count >= 2)
+          time = ros::Time(0);
       }
     }
 
@@ -289,12 +289,6 @@ namespace laser_filters{
         ROS_WARN("EVERY GEOMETRIES MUST HAVE 1 ELEMENT");
         return false;
       }
- 
-      if(platforms_id_.compare(msg_pol.name.c_str()) != 0)
-      {
-        ROS_WARN("EVERY MAP FEATURE NAME MUST BE SAME");
-        return false;
-      }
 
       if(!(msg_pol.type.compare("zone") == 0 && msg_pol.subtype.compare("ramp_zone") == 0))
       {
@@ -307,16 +301,10 @@ namespace laser_filters{
         return false;
       }
       
-      if(msg_pol.geometries[0].type.compare("ramp_zone") != 0)
-      {
-        ROS_WARN("GEOMETRY TYPE MUST BE \"ramp_zone\"");
-        return false;
-      }
-
       std::vector<geometry_msgs::Pose2D> points_of_platform = msg_pol.geometries[0].points;
       if(points_of_platform.size() != 4)
       {
-        ROS_WARN("PLATFORMS MUST HAVE EXACTLY 4 POINTS");
+        ROS_WARN("MAP FEATUERS POİNTS SİZE MUST BE EXACTLY 4");
         return false;
       }
 
