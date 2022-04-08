@@ -11,17 +11,22 @@ namespace laser_filters{
     conf_ = false;
     is_on_ground_ = true;
     platforms_id_ = "";
+    PlatformFilterConfig config;
     dyn_server_.reset(new dynamic_reconfigure::Server<laser_filters::PlatformFilterConfig>(own_mutex_, private_nh));
     dynamic_reconfigure::Server<laser_filters::PlatformFilterConfig>::CallbackType f;
     f = boost::bind(&laser_filters::PlatformFilter::reconfigureCB, this, _1, _2);
     dyn_server_->setCallback(f);
     ros::spinOnce();
-    conf_ = private_nh.getParam("tolerance", tolerance_) && private_nh.getParam("max_distance", max_distance_)
-     && private_nh.getParam("number_skipped_angle", skipped_angle_) && private_nh.getParam("threshold_coefficient", threshold_coef_)
+    conf_ = getParam("tolerance", tolerance_) && getParam("max_distance", max_distance_)
+     && getParam("number_skipped_angle", skipped_angle_) && getParam("threshold_coefficient", threshold_coef_)
      && nh.getParam("laser_frame", laser_frame_) && nh.getParam("map_frame", map_frame_);
+    config.max_distance = max_distance_;
+    config.number_skipped_angle = skipped_angle_;
+    config.threshold_coefficient = threshold_coef_;
+    config.tolerance = tolerance_;
     tfUpdate(ros::Time(0));
-    /*ROS_INFO("\nthreshold:\t%f\nmax_distance:\t%f\nskipped_angle:\t%d\nthreshold_coef:\t%f\nlaser_f:\t%s\nmap_f:\t%s"
-    , tolerance_, max_distance_, skipped_angle_, threshold_coef_, laser_frame_.c_str(), map_frame_.c_str());*/
+    ROS_INFO("\nthreshold:\t%f\nmax_distance:\t%f\nskipped_angle:\t%d\nthreshold_coef:\t%f\nlaser_f:\t%s\nmap_f:\t%s"
+    , tolerance_, max_distance_, skipped_angle_, threshold_coef_, laser_frame_.c_str(), map_frame_.c_str());
     if(conf_)
     {
       ROS_INFO("Configuration completed.");
@@ -43,13 +48,19 @@ namespace laser_filters{
     data_out = data_in;
     if(platforms_ready_ )//is published the platforms by the user
     {
-
       visualizePlatforms();
       laser_geometry::LaserProjection projector;
       sensor_msgs::PointCloud2 cloud_msg;
       std::vector<int> number_of_NAN;
       indexBaseCountNAN(number_of_NAN, data_in);
-      projector.transformLaserScanToPointCloud(map_frame_, data_in, cloud_msg, tf_listener_);
+      try{
+        projector.transformLaserScanToPointCloud(map_frame_, data_in, cloud_msg, tf_listener_);
+      }
+      catch (tf::TransformException &ex){
+        ROS_WARN("TransformException!");
+        ROS_ERROR("%s",ex.what()); 
+        return true;
+      }
       
       sensor_msgs::PointCloud2ConstIterator<float> const_iter_x(cloud_msg, "x"),
                                                 const_iter_y(cloud_msg, "y");
@@ -88,7 +99,7 @@ namespace laser_filters{
           index_of_cloud++;
           ++const_iter_x;
           ++const_iter_y;
-       }
+        }
       }
       //ROS_INFO("\nsize scanner:%i\nsize cloud%i\nnan size:%i",data_in.ranges.size(), index_of_cloud, number_of_NAN.back());
 
@@ -99,7 +110,7 @@ namespace laser_filters{
         {
 
           platform_cloud cl = platform_lines_[index_of_platform];
-
+          //ROS_INFO("cloud size:%i", cl.cloud.size());
           if(cl.count == 0)
             continue;
           cl.sum_of_distance /= cl.count;
@@ -107,17 +118,25 @@ namespace laser_filters{
           Eigen::VectorXf vec;
           pcl::SampleConsensusModelLine<pcl::PointXYZ>::Ptr model_p (new pcl::SampleConsensusModelLine<pcl::PointXYZ> (cl.cloud.makeShared()));
           pcl::RandomSampleConsensus<pcl::PointXYZ> ransac (model_p, cl.sum_of_distance*threshold_coef_);//threshold is sum_of_distance
-
           ransac.computeModel();//compute the regression of line
           ransac.getInliers(inliers);//get line points' indexes
           ransac.getModel(indices);//not using now
           ransac.getModelCoefficients(vec);// it is 6d vector (last 3 element is direction vector on 3d)
-
           pcl::PointCloud<pcl::PointXYZ>::Ptr final(new pcl::PointCloud<pcl::PointXYZ>);
           pcl::copyPointCloud(cl.cloud, inliers, *final);
-          //ROS_INFO("cloud size:%i", cl.cloud.size());
-          //ROS_INFO("final size:%i", final->size());
+          //ROS_INFO("final size:%i\n", final->size());
           //ROS_INFO("inlier size%i indices size:%i", inliers.size(), indices.size());
+          double angle_value_of_platforms_edge = atan2(pol.transport[1], pol.transport[0]);
+          if(angle_value_of_platforms_edge < 0)
+            angle_value_of_platforms_edge += PI;
+          double angle_value_of_fitting_line = atan2(vec[4], vec[3]);
+          if(angle_value_of_fitting_line < 0)
+            angle_value_of_fitting_line += PI;
+          double differ_angle = std::abs( (angle_value_of_platforms_edge - angle_value_of_fitting_line)*180/PI);
+          if(differ_angle < 10.0)//if fitting line and platform edge angle is too close 
+            cl.index_array.clear();//for not entering the for loop below
+          //ROS_INFO("%i\tdiffer angle:%f", index_of_platform, differ_angle);
+          
           visualizePlatforms(index_of_platform, vec);//show the last points of linestrıp on the calculated line on the rviz
             
           int count=0, inliers_index = 0;
@@ -132,6 +151,7 @@ namespace laser_filters{
             }
             count++;
           }
+          //ROS_INFO("%i\t%i", index_of_platform, count);
         }
         platform_cloud cl;
         platform_lines_[index_of_platform] = cl;//clear inside because of not override
@@ -345,8 +365,8 @@ namespace laser_filters{
       platform_cloud cl;
       platform_lines_[index++] = cl;//declaration
 
-      ROS_INFO("%ith polygon was carried. polygon on the zone:%s \npolygon on the ground:%s\npolygon zones itself:%s\ndirection_x:%f\tdirection_y:%f\nyaw:%f\n", index
-      , temp_pol.string_of_polygon[0].c_str(), temp_pol.string_of_polygon[1].c_str(), temp_pol.string_of_zone.c_str(), temp_pol.transport[0], temp_pol.transport[1], yaw);
+      ROS_INFO("%ith polygon was carried. polygon on the zone:%s \npolygon on the ground:%s\npolygon zones itself:%s\ndirection_x:%f\tdirection_y:%f\nyaw:%f\ntolerance:%f\n", index
+      , temp_pol.string_of_polygon[0].c_str(), temp_pol.string_of_polygon[1].c_str(), temp_pol.string_of_zone.c_str(), temp_pol.transport[0], temp_pol.transport[1], yaw, tolerance_);
     }
     return true;
   }
