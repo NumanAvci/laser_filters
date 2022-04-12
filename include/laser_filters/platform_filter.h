@@ -56,26 +56,26 @@ class PlatformFilter : public filters::FilterBase<sensor_msgs::LaserScan>
 		virtual bool configure();
   
 	private:
-    void PlatformZoneCallBack(const milvus_msgs::MapFeaturesStamped::ConstPtr& msg);
+    void platformZoneCallBack(const milvus_msgs::MapFeaturesStamped::ConstPtr& msg);
     void reconfigureCB(laser_filters::PlatformFilterConfig& config, uint32_t level);
 		int isOnPlatform(float scan_x, float scan_y);
     bool exactlyPlatform(double, double, std::string polygon);//if platform close enough this uses exactly platform
-    bool CloseEnough(std::vector<geometry_msgs::Pose2D> *);//control the is robots' laser frame close enough to beginning of the platform
+    bool closeEnough(std::vector<geometry_msgs::Pose2D> &);//control the is robots' laser frame close enough to beginning of the platform
     bool isOnGround(std::string);//where the robot's laser frame
-		void tfUpdate(ros::Time);
+		bool tfUpdate(ros::Time);
     void indexBaseCountNAN(std::vector<int>&, const sensor_msgs::LaserScan&);//until that index how many NAN values the laser data include 
-		bool CarryPolygons();//calculate and carry the expected intersection points of platforms
+		bool carryPolygons();//calculate and carry the expected intersection points of platforms
     void calculateDirection(double*, double, double);//calculate the expected points carrying amount on the x and y axis
-    void calculateYaw(double*, std::vector<geometry_msgs::Pose2D>*);//according to middle and beg of platform, calculate the yaw of platform
+    void calculateYaw(double&, std::vector<geometry_msgs::Pose2D>&);//according to middle and beg of platform, calculate the yaw of platform
     void visualizePlatforms();//visualize platforms' themself and expected spaces
     void visualizePlatforms(int, Eigen::VectorXf&);//visualize fitting line
-    void calculateLine(double* , double beg_x, double beg_y, double end_x, double end_y);//calculate m and n values according to input
-    void calculateCommonPoint(geometry_msgs::Point& , double m_1, double n_1, double m_2, double n_2);//calculate and return the point according to m and n values
+    void calculateLine(double& coef_y, double& line_m,  double& line_n,double beg_x, double beg_y, double end_x, double end_y);//calculate m and n values according to input
+    void calculateCommonPoint(geometry_msgs::Point& , double m_1, double n_1, double coef_y1, double m_2, double n_2, double coef_y2);//calculate and return the point according to m and n values
     double calculateDistance(double beg_x, double beg_y, double end_x, double end_y);
 
-		ros::Subscriber platform_sub_;
+    ros::Subscriber platform_sub_;
     ros::Publisher marker_pub_;//for publishing platforms and their calculated space
-		tf::TransformListener tf_listener_;//for finding laser's position 
+    tf::TransformListener tf_listener_;//for finding laser's position 
     std::shared_ptr<dynamic_reconfigure::Server<laser_filters::PlatformFilterConfig>> dyn_server_;
     boost::recursive_mutex own_mutex_;
     bool conf_;//have parameters got succesfully
@@ -87,15 +87,14 @@ class PlatformFilter : public filters::FilterBase<sensor_msgs::LaserScan>
     std::string laser_frame_;//coming as a parameter
     std::string map_frame_;//coming as a parameter
 
-		double laser_x_, laser_y_, laser_z_, laser_yaw_;//coordinate of laser according to map
-		//std::vector<geometry_msgs::Polygon> platform_array_;//store the values coming from message
+    double laser_x_, laser_y_, laser_z_, laser_yaw_;//coordinate of laser according to map
     std::vector<milvus_msgs::MapFeature> platform_array_;//store the values coming from message
     std::vector<polygons> polygons_data_;//store the calculated and creating values of platforms
     std::string platforms_id_;//message name coming from outside
-		bool platforms_ready_;//when platform data came, it is true
-		
+    bool platforms_ready_;//when platform data came, it is true
+
     bool is_on_ground_;// if robot not on the upside of platform or on the platform, it is true
-    std::map<int, platform_cloud> platform_lines_;//holding that platforms' platform cloud value
+    std::map<int, std::shared_ptr<platform_cloud>> platform_lines_;//holding that platforms' platform cloud value
     std::map<int, int> point_to_scan_index_map_;//map holding scan index values corresponding point cloud index values 
 };
 
