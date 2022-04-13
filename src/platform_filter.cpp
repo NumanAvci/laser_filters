@@ -24,14 +24,16 @@ namespace laser_filters{
     config.threshold_coefficient = threshold_coef_;
     config.tolerance = tolerance_;
     dyn_server_->updateConfig(config);
-    conf_ &= tfUpdate(ros::Time(0));
+    while(!tfUpdate(ros::Time(0)))//needed laser's height
+    {
+      tf_listener_.waitForTransform(map_frame_, laser_frame_, ros::Time(0), ros::Duration(0.1));
+    }
     ROS_INFO("\ntolerance:\t%f\nmax_distance:\t%f\nskipped_angle:\t%d\nthreshold_coef:\t%f\nlaser_f:\t%s\nmap_f:\t%s\nlaser_z:%f"
     , tolerance_, max_distance_, skipped_angle_, threshold_coef_, laser_frame_.c_str(), map_frame_.c_str(), laser_z_);
     if(conf_)
     {
       ROS_INFO("Configuration completed.");
       ROS_INFO("Platforms are waiting");
-      ros::spinOnce();
       return conf_;
     }
     ROS_WARN("Configuration could not completed. Platform parameters are not reachable");
@@ -44,7 +46,7 @@ namespace laser_filters{
 
   /*marking the ranges of intersection of scan data to the platform*/
   bool PlatformFilter::update(const sensor_msgs::LaserScan& data_in, sensor_msgs::LaserScan& data_out)
-  {
+  {// + ros::Duration().fromSec(data_in.time_increment * data_in.ranges.size())
     data_out = data_in;
     if(!tfUpdate(data_in.header.stamp))
       return false;//taking tf data
@@ -108,9 +110,13 @@ namespace laser_filters{
         if(!platform_lines_[index_of_platform]->cloud.empty())
         {
           auto cl = platform_lines_[index_of_platform];
-          //ROS_INFO("cloud size:%i", cl.cloud.size());
+        //  ROS_INFO("%i\tcloud size:%i", index_of_platform, platform_lines_[index_of_platform]->cloud.size());
           if(cl->count == 0)
+          {
+            platform_lines_[index_of_platform] = std::make_shared<platform_cloud>();//clear inside because of not override
+            index_of_platform++;
             continue;
+          }
           cl->sum_of_distance /= cl->count;
           std::vector<int> inliers, indices;// will hold exception index of line
           Eigen::VectorXf vec;
@@ -131,9 +137,12 @@ namespace laser_filters{
           if(angle_value_of_fitting_line < 0)
             angle_value_of_fitting_line += PI;
           double differ_angle = std::abs( (angle_value_of_platforms_edge - angle_value_of_fitting_line)*180/PI);
-          if(differ_angle < 10.0)//if fitting line and platform edge angle is too close 
+          
+          if((differ_angle <= 90 && differ_angle < 10.0) || (differ_angle > 90 && differ_angle > 170)){//if fitting line and platform edge angle is too close 
             cl->index_array.clear();//for not entering the for loop below
-          //ROS_INFO("%i\tdiffer angle:%f", index_of_platform, differ_angle);
+          //  ROS_INFO("%i\tdiffer angle:%f", index_of_platform, differ_angle);
+          }
+
           visualizePlatforms(index_of_platform, vec);//show the last points of linestrıp on the calculated line on the rviz
 
           int count=0, inliers_index = 0;
@@ -206,12 +215,9 @@ namespace laser_filters{
     for (milvus_msgs::MapFeature platform : platform_array_)//iteration all platforms
     {
       std::vector<geometry_msgs::Pose2D> points_of_platform = platform.geometries[0].points;
-
       std::string str_polygon;
-
       if(closeEnough(points_of_platform))//if it is far we do not control
       {
-
         if(isOnGround(it_polygons->string_of_zone) )
        	  str_polygon = it_polygons->string_of_polygon[0];//control the polygon that is on the zone
      	  else
@@ -262,23 +268,22 @@ namespace laser_filters{
   bool PlatformFilter::tfUpdate(ros::Time time)
   {
     tf::StampedTransform tf_transform_laser;
-    bool tf_not_ready = true;
-    int count = 0;
+    bool tf_not_ready = true, is_first = true;
     while(tf_not_ready && ros::ok())
     {
-      //ROS_INFO("%f",t.toSec());
-      try{
-        //ros::Duration(t.toSec()).sleep();
-        tf_listener_.lookupTransform(map_frame_, laser_frame_, time , tf_transform_laser);//laser's position according to map        tf_not_ready = false;
-        tf_not_ready = false;
-      }
-      catch (tf::TransformException &ex){
-        ROS_ERROR("%s",ex.what()); 
-        ros::Duration(0.5).sleep();
-        tf_not_ready = true;
-        if(++count >= 4)
-          return false;
-      }
+    try{
+      tf_listener_.lookupTransform(map_frame_, laser_frame_, time, tf_transform_laser);//laser's position according to map
+      tf_not_ready = false;
+    }
+    catch (tf::TransformException &ex){
+      ROS_ERROR("%s",ex.what());
+      if(is_first)//iterate just two times
+        tf_listener_.waitForTransform(map_frame_, laser_frame_, time, ros::Duration(0.1));
+      else
+        return false;
+      tf_not_ready = true;
+      is_first = false;
+    }
     }
 
     laser_x_ = tf_transform_laser.getOrigin().x();//coordinate of laser according to map
@@ -546,9 +551,15 @@ namespace laser_filters{
       ROS_ERROR("Inappropriate line values are reached");
     
     if(coef_y_1 != 1)
+    {
       out.y = (m_2 * (-1*n_1) ) + n_2;  
+      out.x = -1*n_1;
+    }
     else if(coef_y_2 != 1)
-      out.y = (m_1 * (-1*n_2) ) + n_1;  
+    {
+      out.y = (m_1 * (-1*n_2) ) + n_1;
+      out.x = -1*n_2;
+    }  
     else  
       out.y = m_2 * out.x + n_2;
   }
