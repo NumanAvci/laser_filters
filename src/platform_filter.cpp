@@ -18,11 +18,13 @@ namespace laser_filters{
     dyn_server_->setCallback(f);
     conf_ = getParam("tolerance", tolerance_) & getParam("max_distance", max_distance_)
      & getParam("number_skipped_angle", skipped_angle_) & getParam("threshold_coefficient", threshold_coef_)
+     & getParam("angle_threshold", angle_threshold_)
      & nh.getParam("laser_frame", laser_frame_) & nh.getParam("map_frame", map_frame_);
     config.max_distance = max_distance_;
     config.number_skipped_angle = skipped_angle_;
     config.threshold_coefficient = threshold_coef_;
     config.tolerance = tolerance_;
+    config.angle_threshold = angle_threshold_;
     dyn_server_->updateConfig(config);
     while(!tfUpdate(ros::Time(0)))//needed laser's height
     {
@@ -138,7 +140,7 @@ namespace laser_filters{
             angle_value_of_fitting_line += PI;
           double differ_angle = std::abs( (angle_value_of_platforms_edge - angle_value_of_fitting_line)*180/PI);
           
-          if((differ_angle <= 90 && differ_angle < 10.0) || (differ_angle > 90 && differ_angle > 170)){//if fitting line and platform edge angle is too close 
+          if((differ_angle <= 90 && differ_angle < angle_threshold_) || (differ_angle > 90 && differ_angle > 180-angle_threshold_)){//if fitting line and platform edge angle is too close 
             cl->index_array.clear();//for not entering the for loop below
           //  ROS_INFO("%i\tdiffer angle:%f", index_of_platform, differ_angle);
           }
@@ -204,6 +206,7 @@ namespace laser_filters{
     max_distance_ = config.max_distance;
     skipped_angle_ = config.number_skipped_angle;
     threshold_coef_ = config.threshold_coefficient;
+    angle_threshold_ = config.angle_threshold;
     if(platforms_ready_)
       platforms_ready_ = carryPolygons();//do it again according to new tolerance
   }

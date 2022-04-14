@@ -84,6 +84,7 @@ class PlatformFilter : public filters::FilterBase<sensor_msgs::LaserScan>
     double max_distance_;
     int skipped_angle_;
     double threshold_coef_;//for ransac
+    double angle_threshold_;
     std::string laser_frame_;//coming as a parameter
     std::string map_frame_;//coming as a parameter
 
