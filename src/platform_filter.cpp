@@ -57,8 +57,6 @@ namespace laser_filters{
       visualizePlatforms();
       laser_geometry::LaserProjection projector;
       sensor_msgs::PointCloud2 cloud_msg;
-      std::vector<int> number_of_NAN;
-      indexBaseCountNAN(number_of_NAN, data_in);
       try{
         projector.transformLaserScanToPointCloud(map_frame_, data_in, cloud_msg, tf_listener_);
       }
@@ -72,7 +70,7 @@ namespace laser_filters{
                                                 const_iter_y(cloud_msg, "y");
       int index_of_cloud = 0, last_index_of_cloud = 0;
       sensor_msgs::PointCloud2ConstIterator<float> const_last_iter_x(const_iter_x), const_last_iter_y(const_iter_y);
-      
+      std::map<int, int> point_to_scan_index_map;//map holding scan index values corresponding point cloud index values 
       for(int i=0;i < data_in.ranges.size();i++)//find points that are on the platforms
       {
         if( data_in.range_min < data_in.ranges[i]  && data_in.range_max > data_in.ranges[i] )
@@ -86,7 +84,7 @@ namespace laser_filters{
             pcl::PointXYZ point(*const_iter_x, *const_iter_y, 0);
             (*pl_struct).cloud.push_back(point);
             (*pl_struct).index_array.push_back(index_of_cloud);
-            point_to_scan_index_map_[index_of_cloud] = i;
+            point_to_scan_index_map[index_of_cloud] = i;
             if(!(*pl_struct).is_first_it)
             {
               if( ( index_of_cloud - last_index_of_cloud ) < (skipped_angle_+1) )
@@ -152,7 +150,7 @@ namespace laser_filters{
           {
             if(inliers[inliers_index] == count)//then it is on the line
             {
-              int scan_index = point_to_scan_index_map_[index];
+              int scan_index = point_to_scan_index_map[index];
               data_out.ranges[scan_index] = std::numeric_limits<float>::quiet_NaN();
               inliers_index++;
             }
@@ -166,17 +164,6 @@ namespace laser_filters{
       
     }
     return true;
-  }
-  /*count NAN values until coming that index and inizilize the vector that have same size with scan data*/
-  void PlatformFilter::indexBaseCountNAN(std::vector<int>& vec, const sensor_msgs::LaserScan& data)
-  {
-    int count = 0;
-    for(int i=0;i < data.ranges.size();i++)
-    {
-      if( !(data.range_min <= data.ranges[i]  && data.range_max >= data.ranges[i]) )
-        count++;
-      vec.push_back(count);
-    }
   }
 
   /*memorize the platforms position*/
@@ -280,9 +267,7 @@ namespace laser_filters{
     }
     catch (tf::TransformException &ex){
       ROS_ERROR("%s",ex.what());
-      if(is_first)//iterate just two times
-        tf_listener_.waitForTransform(map_frame_, laser_frame_, time, ros::Duration(0.1));
-      else
+      if(!is_first)//iterate just two times
         return false;
       tf_not_ready = true;
       is_first = false;

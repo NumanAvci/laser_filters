@@ -62,8 +62,7 @@ class PlatformFilter : public filters::FilterBase<sensor_msgs::LaserScan>
     bool exactlyPlatform(double, double, std::string polygon);//if platform close enough this uses exactly platform
     bool closeEnough(std::vector<geometry_msgs::Pose2D> &);//control the is robots' laser frame close enough to beginning of the platform
     bool isOnGround(std::string);//where the robot's laser frame
-		bool tfUpdate(ros::Time);
-    void indexBaseCountNAN(std::vector<int>&, const sensor_msgs::LaserScan&);//until that index how many NAN values the laser data include 
+		bool tfUpdate(ros::Time); 
 		bool carryPolygons();//calculate and carry the expected intersection points of platforms
     void calculateDirection(double*, double, double);//calculate the expected points carrying amount on the x and y axis
     void calculateYaw(double&, std::vector<geometry_msgs::Pose2D>&);//according to middle and beg of platform, calculate the yaw of platform
@@ -96,7 +95,6 @@ class PlatformFilter : public filters::FilterBase<sensor_msgs::LaserScan>
 
     bool is_on_ground_;// if robot not on the upside of platform or on the platform, it is true
     std::map<int, std::shared_ptr<platform_cloud>> platform_lines_;//holding that platforms' platform cloud value
-    std::map<int, int> point_to_scan_index_map_;//map holding scan index values corresponding point cloud index values 
 };
 
 }

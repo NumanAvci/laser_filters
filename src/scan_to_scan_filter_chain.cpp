@@ -138,7 +138,7 @@ public:
 int main(int argc, char **argv)
 {
   ros::init(argc, argv, "scan_to_scan_filter_chain");
-  ros::NodeHandle nh("/laser_filter");
+  ros::NodeHandle nh("laser_filter");
   std::string laser_topic;
   nh.getParam("laser_topic", laser_topic);
   ScanToScanFilterChain t(laser_topic);
