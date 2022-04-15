@@ -49,6 +49,7 @@ namespace laser_filters{
   /*marking the ranges of intersection of scan data to the platform*/
   bool PlatformFilter::update(const sensor_msgs::LaserScan& data_in, sensor_msgs::LaserScan& data_out)
   {// + ros::Duration().fromSec(data_in.time_increment * data_in.ranges.size())
+    double beg_time = ros::Time::now().toSec(); 
     data_out = data_in;
     if(!tfUpdate(data_in.header.stamp))
       return false;//taking tf data
@@ -124,10 +125,10 @@ namespace laser_filters{
           pcl::RandomSampleConsensus<pcl::PointXYZ> ransac (model_p, cl->sum_of_distance*threshold_coef_);//threshold is sum_of_distance
           ransac.computeModel();//compute the regression of line
           ransac.getInliers(inliers);//get line points' indexes
-          ransac.getModel(indices);//not using now
+          //ransac.getModel(indices);//not using now
           ransac.getModelCoefficients(vec);// it is 6d vector (last 3 element is direction vector on 3d)
           pcl::PointCloud<pcl::PointXYZ>::Ptr final(new pcl::PointCloud<pcl::PointXYZ>);
-          pcl::copyPointCloud(cl->cloud, inliers, *final);
+          //pcl::copyPointCloud(cl->cloud, inliers, *final);
           //ROS_INFO("final size:%i\n", final->size());
           //ROS_INFO("inlier size%i indices size:%i", inliers.size(), indices.size());
           double angle_value_of_platforms_edge = atan2(pol.transport[1], pol.transport[0]);
@@ -163,6 +164,8 @@ namespace laser_filters{
       }
       
     }
+    double diff = ros::Time::now().toSec() - beg_time;
+    ROS_INFO("Working time:\t%f", diff);
     return true;
   }
 
